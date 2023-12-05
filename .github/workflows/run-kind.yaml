@@ -1,0 +1,38 @@
+
+name: Kind in podman
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  kind-in-podman:
+    name: Kind in podman
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        style: [ rootless, rootful ]
+        podman-version: [ 3, 4 ]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install podman 4.*
+        uses: ./.github/actions/install-podman-4
+        if: matrix.podman-version == '4'
+      - name: Set podman env
+        run: echo "podman=podman" >> $GITHUB_ENV
+      - name: Set sudo podman env
+        run: echo "podman=sudo podman" >> $GITHUB_ENV
+        if: matrix.style == 'rootful'
+      - name: Build image
+        run: $podman build -t localhost/kind .
+      - name: Run the podman container
+        run: $podman run -d --privileged --name kind localhost/kind sleep 120
+      - name: Cluster configuration for rootless
+        run: echo "kind_create_opts=--config /etc/kind-cluster-rootless.yaml" >> $GITHUB_ENV
+        if: matrix.style == 'rootless'
+      - name: Create kind cluster
+        run: $podman exec kind kind create cluster --retain $kind_create_opts
+

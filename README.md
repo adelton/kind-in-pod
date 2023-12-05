@@ -123,3 +123,16 @@ We can then use
 ```
 to check what's in the Kubernetes-in-podman-in-podman cluster by
 default.
+
+## Automate the initial investigation
+
+Based on the above investigation, we can use a [Dockerfile](Dockerfile)
+to build a container image which could be used in various scenarios.
+
+The basic use then changes to
+
+```
+$ podman build -t localhost/kind .
+$ podman run -ti --privileged --name kind localhost/kind \
+    kind create cluster --config /etc/kind-cluster-rootless.yaml
+```
