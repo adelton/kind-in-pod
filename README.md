@@ -189,3 +189,9 @@ and thus got lost when the container got removed.
 Luckily the environment variable `KUBECONFIG` is used both by `kubectl`
 and by `kind create cluster`, so setting it to point to a location
 under the now persistent `/var/lib/containers/` makes things work.
+
+The last step in the persistence story is adding `--read-only` to
+the `podman run` parameters. This serves as a safeguard against some
+of the vital configuration or data being stored outside of the mounted
+volume, and thus getting lost when the container is removed and
+recreated.
