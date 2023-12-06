@@ -16,6 +16,8 @@ jobs:
         style: [ rootless, rootful ]
         podman-version: [ 3, 4 ]
     timeout-minutes: 15
+    env:
+      kind_create_opts: --config /etc/kind-cluster.yaml
     steps:
       - uses: actions/checkout@v3
       - name: Install podman 4.*
@@ -46,7 +48,7 @@ jobs:
         run: echo "podman_run_opts=-v $(pwd)/kind-network.yaml:/etc/containers/networks/kind.json" >> $GITHUB_ENV
         if: matrix.style == 'rootful'
       - name: Run the podman container
-        run: $podman run -d --privileged --read-only --name kind -v kind-data:/var/lib/containers $podman_run_opts localhost/kind
+        run: $podman run -d --privileged --read-only --name kind -v kind-data:/var/lib/containers $podman_run_opts -p 6443:6443 localhost/kind
       - name: Cluster configuration for rootless
         run: echo "kind_create_opts=--config /etc/kind-cluster-rootless.yaml" >> $GITHUB_ENV
         if: matrix.style == 'rootless'
@@ -57,8 +59,9 @@ jobs:
       - run: $podman exec kind kubectl cluster-info --context kind-kind
       - run: $podman exec -ti kind kubectl wait --for=condition=ready -n kube-system pod/etcd-kind-control-plane pod/kube-apiserver-kind-control-plane --timeout=60s
       - run: $podman exec kind kubectl get all -A
+      - run: $podman exec kind curl -k https://127.0.0.1:6443/
       - run: $podman rm -f kind
-      - run: $podman run -d --privileged --read-only --name kind -v kind-data:/var/lib/containers $podman_run_opts localhost/kind
+      - run: $podman run -d --privileged --read-only --name kind -v kind-data:/var/lib/containers $podman_run_opts -p 6443:6443 localhost/kind
       - run: $podman exec -ti kind podman start --all
       - run: $podman exec -ti kind podman wait --condition=running kind-control-plane ; sleep 10
       - run: $podman exec kind kubectl get all -A

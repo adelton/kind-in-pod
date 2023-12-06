@@ -8,3 +8,5 @@ nodes:
     nodeRegistration:
       kubeletExtraArgs:
         feature-gates: KubeletInUserNamespace=true
+networking:
+  apiServerPort: 6443

@@ -195,3 +195,16 @@ the `podman run` parameters. This serves as a safeguard against some
 of the vital configuration or data being stored outside of the mounted
 volume, and thus getting lost when the container is removed and
 recreated.
+
+## Access to the API server
+
+By default the API server runs on a randomly assigned port in the
+podman cluster:
+```
+$ podman exec -ti kind kubectl cluster-info --context kind-kind
+Kubernetes control plane is running at https://127.0.0.1:33997
+```
+
+By using a [Cluster config](kind-cluster.yaml) with `apiServerPort`
+specified, we can have the value consistent, easier to then publish
+it outside of the podman in the future.
