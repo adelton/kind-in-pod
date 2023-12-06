@@ -234,3 +234,8 @@ $ kubectl exec pod/kind-cluster -- kubectl get all -A
 ```
 will show a **kind** Kubernetes cluster withing a K3s Kubernetes
 cluster.
+
+As with podman where we used `--read-only`, in Kubernetes we want to
+use `readOnlyRootFilesystem: true`. It requires a bit of special
+handling, mounting `emptyDir` volumes to `/run` and `/tmp` and setting
+`TMPDIR=/tmp` to avoid the use of `/var/tmp`.

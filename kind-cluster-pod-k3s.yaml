@@ -23,12 +23,16 @@ spec:
     imagePullPolicy: IfNotPresent
     securityContext:
       privileged: true
+      readOnlyRootFilesystem: true
     command:
     - kind
     - create
     - cluster
     - --config
     - /etc/kind-cluster-rootless.yaml
+    env:
+    - name: TMPDIR
+      value: /tmp
     volumeMounts:
     - mountPath: /var/lib/containers
       name: var-lib-containers
@@ -36,16 +40,24 @@ spec:
       name: podman-config
       subPath: kind-network.json
       readOnly: true
+    - mountPath: /run
+      name: init-c-run-tmp
+    - mountPath: /tmp
+      name: init-c-run-tmp
   containers:
   - name: run-cluster
     image: localhost/kind
     imagePullPolicy: IfNotPresent
     securityContext:
       privileged: true
+      readOnlyRootFilesystem: true
     command:
     - bash
     - -c
     - 'podman start --all && sleep infinity'
+    env:
+    - name: TMPDIR
+      value: /tmp
     volumeMounts:
     - mountPath: /var/lib/containers
       name: var-lib-containers
@@ -53,6 +65,10 @@ spec:
       name: podman-config
       subPath: kind-network.json
       readOnly: true
+    - mountPath: /run
+      name: podman-run-tmp
+    - mountPath: /tmp
+      name: podman-run-tmp
   volumes:
   - name: var-lib-containers
     persistentVolumeClaim:
@@ -60,6 +76,10 @@ spec:
   - name: podman-config
     configMap:
       name: podman-config
+  - name: init-c-run-tmp
+    emptyDir: {}
+  - name: podman-run-tmp
+    emptyDir: {}
 ---
 apiVersion: v1
 kind: ConfigMap
