@@ -26,11 +26,11 @@ spec:
       readOnlyRootFilesystem: true
     command:
     - /usr/local/bin/kind-create-cluster
-    - --config
-    - /etc/kind-cluster-rootless.yaml
     env:
     - name: TMPDIR
       value: /tmp
+    - name: KIND_CLUSTER_CONFIG
+      value: /etc/kind-cluster-rootless.yaml
     volumeMounts:
     - mountPath: /var/lib/containers
       name: var-lib-containers
