@@ -93,6 +93,7 @@ jobs:
       - run: kubectl get pod/kind-cluster
       - run: kubectl describe pod/kind-cluster
       - run: kubectl exec pod/kind-cluster -- podman ps -a
+      - run: while ! kubectl exec pod/kind-cluster -- curl -ks https://127.0.0.1:6443/ ; do sleep 1 ; done
       - run: kubectl exec pod/kind-cluster -- kubectl get all -A
 
       - run: kubectl exec pod/kind-cluster -- kubectl create serviceaccount -n default admin
