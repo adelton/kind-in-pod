@@ -136,3 +136,18 @@ $ podman build -t localhost/kind .
 $ podman run -ti --privileged --name kind localhost/kind \
     kind create cluster --config /etc/kind-cluster-rootless.yaml
 ```
+
+Since the command now recommends
+```
+Set kubectl context to "kind-kind"
+You can now use your cluster with:
+kubectl cluster-info --context kind-kind
+```
+we can add the Kubernetes client to the container image and try that.
+However, with the `kind create cluster` command finishing, the
+container stopped as well. We might want to set the `ENTRYPOINT`
+to just infinite sleep, recreate the container with just
+```
+$ podman run -d --privileged --name kind localhost/kind
+```
+and then `podman exec` the commands in it.
