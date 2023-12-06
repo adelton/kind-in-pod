@@ -38,7 +38,7 @@ spec:
       readOnly: true
   containers:
   - name: run-cluster
-    image: quay.io/podman/stable
+    image: localhost/kind
     imagePullPolicy: IfNotPresent
     securityContext:
       privileged: true
