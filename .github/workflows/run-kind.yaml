@@ -84,6 +84,7 @@ jobs:
       - run: docker save localhost/kind | sudo k3s ctr images import -
       - run: sudo k3s ctr images ls
       - run: while ! kubectl get serviceaccount/default ; do sleep 5 ; done
+      - run: while ! kubectl get -n kube-system service/traefik ; do sleep 5 ; done
       - run: kubectl apply -f - < kind-cluster-pod-k3s.yaml
       - run: while ! kubectl get pod/kind-cluster -o jsonpath="{.status.initContainerStatuses[0].state['running','terminated'].startedAt}" | grep . ; do kubectl get pod/kind-cluster ; sleep 5 ; done
       - run: kubectl logs -f pod/kind-cluster -c create-cluster
@@ -93,6 +94,15 @@ jobs:
       - run: kubectl describe pod/kind-cluster
       - run: kubectl exec pod/kind-cluster -- podman ps -a
       - run: kubectl exec pod/kind-cluster -- kubectl get all -A
+
+      - run: kubectl exec pod/kind-cluster -- kubectl create serviceaccount -n default admin
+      - run: kubectl exec pod/kind-cluster -- kubectl patch clusterrolebinding cluster-admin --type=json -p='[{"op":"add", "path":"/subjects/-", "value":{"kind":"ServiceAccount", "namespace":"default", "name":"admin" } }]'
+      - run: kubectl --kubeconfig=./kubeconfig config set-cluster kind --server=https://$( kubectl get -n kube-system service/traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' )/kind-api --insecure-skip-tls-verify=true
+      - run: kubectl --kubeconfig=./kubeconfig config set-credentials kind-admin --token=$( kubectl exec pod/kind-cluster -- kubectl create token -n default admin )
+      - run: kubectl --kubeconfig=./kubeconfig config set-context kind --cluster=kind --user=kind-admin
+      - run: kubectl --kubeconfig=./kubeconfig config use-context kind
+      - run: kubectl --kubeconfig=./kubeconfig get all -A
+
       - run: kubectl delete pod/kind-cluster
       - run: kubectl apply -f - < kind-cluster-pod-k3s.yaml
       - run: while ! kubectl get pod/kind-cluster -o jsonpath="{.status.containerStatuses[0].state['running','terminated'].startedAt}" | grep . ; do kubectl get pod/kind-cluster ; sleep 5 ; done
@@ -100,4 +110,6 @@ jobs:
       - run: kubectl logs pod/kind-cluster
       - run: while ! kubectl exec pod/kind-cluster -- curl -ks https://127.0.0.1:6443/ ; do sleep 1 ; done
       - run: kubectl exec pod/kind-cluster -- kubectl get all -A
+
+      - run: kubectl --kubeconfig=./kubeconfig get all -A
 

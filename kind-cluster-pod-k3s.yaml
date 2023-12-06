@@ -67,6 +67,22 @@ spec:
       name: podman-run-tmp
     - mountPath: /tmp
       name: podman-run-tmp
+  - name: api-proxy
+    image: docker.io/library/nginx:stable
+    imagePullPolicy: IfNotPresent
+    securityContext:
+      readOnlyRootFilesystem: true
+    command:
+    - /usr/sbin/nginx
+    volumeMounts:
+    - mountPath: /etc/nginx/nginx.conf
+      name: nginx-config
+      subPath: nginx.conf
+      readOnly: true
+    - mountPath: /run
+      name: nginx-run-cache
+    - mountPath: /var/cache/nginx
+      name: nginx-run-cache
   volumes:
   - name: var-lib-containers
     persistentVolumeClaim:
@@ -74,9 +90,14 @@ spec:
   - name: podman-config
     configMap:
       name: podman-config
+  - name: nginx-config
+    configMap:
+      name: nginx-config
   - name: init-c-run-tmp
     emptyDir: {}
   - name: podman-run-tmp
+    emptyDir: {}
+  - name: nginx-run-cache
     emptyDir: {}
 ---
 apiVersion: v1
@@ -104,3 +125,78 @@ data:
           "driver": "host-local"
      }
     }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+data:
+  nginx.conf: |
+    user nginx;
+    error_log /var/log/nginx/error.log notice;
+
+    pid /run/nginx.pid;
+    worker_processes  1;
+    daemon off;
+
+    events {
+      worker_connections 1024;
+    }
+
+    include /usr/share/nginx/modules/*.conf;
+
+    http {
+      server {
+        listen 6080;
+
+        location / {
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_pass https://127.0.0.1:6443/;
+          proxy_set_header Host $http_host;
+          proxy_set_header X-Forwarded-For $remote_addr;
+        }
+      }
+    }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kind-cluster
+spec:
+  selector:
+    app: kind-cluster
+  ports:
+  - protocol: TCP
+    port: 6080
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-prefix-kind-api
+  namespace: default
+spec:
+  stripPrefix:
+    prefixes:
+      - /kind-api
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kind-cluster-api
+  namespace: default
+  annotations:
+    # kubernetes.io/ingress.class: "traefik"
+    traefik.ingress.kubernetes.io/router.middlewares: default-strip-prefix-kind-api@kubernetescrd
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik
+  rules:
+  - http:
+      paths:
+      - path: /kind-api
+        pathType: Prefix
+        backend:
+          service:
+            name: kind-cluster
+            port:
+              number: 6080
