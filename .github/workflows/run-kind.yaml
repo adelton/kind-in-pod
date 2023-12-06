@@ -31,6 +31,7 @@ jobs:
         if: matrix.style == 'rootful' && matrix.podman-version == '3'
       - name: Build image
         run: $podman build -t localhost/kind .
+      - run: sudo modprobe ip6_tables
       - name: Run the podman container
         run: $podman run -d --privileged --name kind localhost/kind sleep 120
       - name: Cluster configuration for rootless
