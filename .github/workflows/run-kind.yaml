@@ -39,4 +39,6 @@ jobs:
         if: matrix.style == 'rootless'
       - name: Create kind cluster
         run: $podman exec kind kind create cluster --retain $kind_create_opts
+      - run: $podman exec kind podman logs kind-control-plane
+        if: ${{ failure() }}
 
