@@ -79,7 +79,7 @@ jobs:
       - name: Install and setup K3s
         run: curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode 644
       - name: Wait for the cluster to become ready
-        run: kubectl get nodes -o jsonpath='{.items[*].metadata.name}' | xargs kubectl wait --for=condition=ready node
+        run: while ! kubectl get nodes ; do sleep 5 ; done ; kubectl get nodes -o jsonpath='{.items[*].metadata.name}' | xargs kubectl wait --for=condition=ready node
       - run: kubectl get all -A
       - run: docker save localhost/kind | sudo k3s ctr images import -
       - run: sudo k3s ctr images ls
