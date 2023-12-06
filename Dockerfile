@@ -5,4 +5,5 @@ RUN chmod +x /usr/local/bin/kind
 RUN sed -i 's/utsns=.*/utsns="private"/; s/cgroups=.*/cgroups="enabled"/' /etc/containers/containers.conf
 COPY kind-cluster-rootless.yaml /etc/kind-cluster-rootless.yaml
 ENV KIND_EXPERIMENTAL_PROVIDER podman
+ENV KUBECONFIG /var/lib/containers/kubeconfig
 ENTRYPOINT trap : TERM INT; sleep infinity & wait

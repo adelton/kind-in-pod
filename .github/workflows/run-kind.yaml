@@ -40,8 +40,10 @@ jobs:
       - name: Build image
         run: $podman build -t localhost/kind .
       - run: sudo modprobe ip6_tables
+      - name: Create a volume
+        run: $podman volume create kind-data
       - name: Run the podman container
-        run: $podman run -d --privileged --name kind localhost/kind
+        run: $podman run -d --privileged --name kind -v kind-data:/var/lib/containers localhost/kind
       - name: Cluster configuration for rootless
         run: echo "kind_create_opts=--config /etc/kind-cluster-rootless.yaml" >> $GITHUB_ENV
         if: matrix.style == 'rootless'
@@ -51,5 +53,9 @@ jobs:
         if: ${{ failure() }}
       - run: $podman exec kind kubectl cluster-info --context kind-kind
       - run: $podman exec -ti kind kubectl wait --for=condition=ready -n kube-system pod/etcd-kind-control-plane pod/kube-apiserver-kind-control-plane --timeout=60s
+      - run: $podman exec kind kubectl get all -A
+      - run: $podman rm -f kind
+      - run: $podman run -d --privileged --name kind -v kind-data:/var/lib/containers localhost/kind
+      - run: $podman exec -ti kind podman start --all
       - run: $podman exec kind kubectl get all -A
 
