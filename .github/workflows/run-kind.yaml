@@ -66,3 +66,31 @@ jobs:
       - run: $podman exec -ti kind podman wait --condition=running kind-control-plane ; sleep 10
       - run: $podman exec kind kubectl get all -A
 
+  kind-in-k3s:
+    name: Kind in K3s
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    env:
+      KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build image
+        run: docker build -t localhost/kind .
+      - name: Install and setup K3s
+        run: curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode 644
+      - name: Wait for the cluster to become ready
+        run: kubectl get nodes -o jsonpath='{.items[*].metadata.name}' | xargs kubectl wait --for=condition=ready node
+      - run: kubectl get all -A
+      - run: docker save localhost/kind | sudo k3s ctr images import -
+      - run: sudo k3s ctr images ls
+      - run: while ! kubectl get serviceaccount/default ; do sleep 5 ; done
+      - run: kubectl apply -f - < kind-cluster-pod-k3s.yaml
+      - run: while ! kubectl get pod/kind-cluster -o jsonpath="{.status.initContainerStatuses[0].state['running','terminated'].startedAt}" | grep . ; do kubectl get pod/kind-cluster ; sleep 5 ; done
+      - run: kubectl logs -f pod/kind-cluster -c create-cluster
+      - run: while ! kubectl get pod/kind-cluster -o jsonpath="{.status.containerStatuses[0].state['running','terminated'].startedAt}" | grep . ; do kubectl get pod/kind-cluster ; sleep 5 ; done
+      - run: kubectl logs pod/kind-cluster
+      - run: kubectl get pod/kind-cluster
+      - run: kubectl describe pod/kind-cluster
+      - run: kubectl exec pod/kind-cluster -- podman ps -a
+      - run: kubectl exec pod/kind-cluster -- kubectl get all -A
+

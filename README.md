@@ -208,3 +208,29 @@ Kubernetes control plane is running at https://127.0.0.1:33997
 By using a [Cluster config](kind-cluster.yaml) with `apiServerPort`
 specified, we can have the value consistent, easier to then publish
 it outside of the podman in the future.
+
+## Running in a K3s setup
+
+With the basic **kind** operation verified with plain podman, we can
+replicate the same setup in a K3s pod. The
+[kind-cluster-pod-k3s.yaml](kind-cluster-pod-k3s.yaml) shows an
+example Pod. The `image` is defined as `localhost/kind` there so it
+needs to be built and then `k3s ctr images import`ed for K3s to be
+able to use the image.
+
+Then it should be a matter of
+```
+$ kubectl apply -f - < kind-cluster-pod-k3s.yaml
+```
+and checking the progress with
+```
+$ kubectl logs -f pod/kind-cluster -c create-cluster
+$ kubectl logs pod/kind-cluster
+```
+
+Eventually,
+```
+$ kubectl exec pod/kind-cluster -- kubectl get all -A
+```
+will show a **kind** Kubernetes cluster withing a K3s Kubernetes
+cluster.
