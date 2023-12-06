@@ -268,3 +268,71 @@ $ kubectl --kubeconfig=./kubeconfig config set-context kind --cluster=kind --use
 $ kubectl --kubeconfig=./kubeconfig config use-context kind
 $ kubectl --kubeconfig=./kubeconfig get all -A
 ```
+
+## Running on an OpenShift cluster
+
+The [kind-cluster-pod-openshift.yaml](kind-cluster-pod-openshift.yaml)
+for deployment on an OpenShift cluster is quite similar to the
+K3s-specific [kind-cluster-pod-k3s.yaml](kind-cluster-pod-k3s.yaml).
+The main difference is the image which is defined as the internal
+registry `image-registry.openshift-image-registry.svc:5000/kind/kind`,
+and the use of OpenShift's Route instead of the Traefik ingress. Try
+```
+$ diff -u kind-cluster-pod-k3s.yaml kind-cluster-pod-openshift.yaml
+```
+to see what exactly is different.
+
+We can certainly build the **kind** image, push it to a public
+container registry like quay.io, and update the containers' `image`
+value to match that location. We can also build the image locally with
+`podman build` and push it to the registry in our cluster.
+
+By default the registry on the OpenShift cluster is not accessible from
+outside of the cluster. We can enable it with
+
+```
+$ oc --context admin patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":true}}' --type=merge
+```
+and we get credentials for podman with
+```
+$ REGISTRY=$(oc --context admin get route default-route -n openshift-image-registry --template='{{ .spec.host }}')
+$ podman login -u ignored -p $(oc whoami -t) $REGISTRY
+```
+
+We then create a new project (== namespace) and push the image to the
+internal registry, to that new namespace:
+```
+$ oc new-project kind
+$ podman push localhost/kind $REGISTRY/kind/kind
+```
+
+Since we run the containers as privileged, we need to give the
+`default` ServiceAccount the `privileged` SCC:
+```
+$ oc --context admin adm policy add-scc-to-user privileged -z default -n kind
+```
+
+Then we can create the Pod
+```
+$ oc apply -f - < kind-cluster-pod-openshift.yaml
+```
+and when everything passes, we get the **kind** Kubernetes cluster in
+an OpenShift Pod:
+```
+$ oc exec kind-cluster -- kubectl get all -A
+```
+
+Getting access to the cluster is then very similar to the setup on K3s:
+```
+$ oc exec pod/kind-cluster -- kubectl create serviceaccount -n default admin
+$ oc exec pod/kind-cluster -- \
+    kubectl patch clusterrolebinding cluster-admin --type=json \
+    -p='[{"op":"add", "path":"/subjects/-", "value":{"kind":"ServiceAccount", "namespace":"default", "name":"admin" } }]'
+$ KIND_HOSTNAME=$(oc get route/kind-cluster-api -o jsonpath='{.spec.host}')
+$ oc --kubeconfig=./kubeconfig config set-cluster kind --server=https://$KIND_HOSTNAME/
+$ oc --kubeconfig=./kubeconfig config set-credentials kind-admin \
+    --token=$(oc exec pod/kind-cluster -- kubectl create token -n default admin)
+$ oc --kubeconfig=./kubeconfig config set-context kind --cluster=kind --user=kind-admin
+$ oc --kubeconfig=./kubeconfig config use-context kind
+$ oc --kubeconfig=./kubeconfig get all -A
+```
