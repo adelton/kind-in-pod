@@ -239,3 +239,32 @@ As with podman where we used `--read-only`, in Kubernetes we want to
 use `readOnlyRootFilesystem: true`. It requires a bit of special
 handling, mounting `emptyDir` volumes to `/run` and `/tmp` and setting
 `TMPDIR=/tmp` to avoid the use of `/var/tmp`.
+
+Since the API server listens on 127.0.0.1 in the container, we
+expose it via a separate HTTP proxy, and configure an ingress to the
+K3s cluster. That means that within the K3s cluster, the traffic to
+the **kind** cluster within is not encrypted. That is fine for the
+testing purposes but it also means that we don't have an end-to-end
+HTTPS connection to use the client certificate we can see in
+
+```
+$ kubectl exec pod/kind-cluster -- cat /var/lib/containers/kubeconfig
+```
+
+Instead we can create for example a separate cluster-admin Service
+Account and use its token to access te API server of the **kind**
+cluster:
+```
+$ kubectl exec pod/kind-cluster -- kubectl create serviceaccount -n default admin
+$ kubectl exec pod/kind-cluster -- \
+    kubectl patch clusterrolebinding cluster-admin --type=json \
+    -p='[{"op":"add", "path":"/subjects/-", "value":{"kind":"ServiceAccount", "namespace":"default", "name":"admin" } }]'
+$ KIND_ID=$(kubectl get -n kube-system service/traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+$ kubectl --kubeconfig=./kubeconfig config set-cluster kind \
+    --server=https://$KIND_IP/kind-api --insecure-skip-tls-verify=true
+$ kubectl --kubeconfig=./kubeconfig config set-credentials kind-admin \
+    --token=$(kubectl exec pod/kind-cluster -- kubectl create token -n default admin)
+$ kubectl --kubeconfig=./kubeconfig config set-context kind --cluster=kind --user=kind-admin
+$ kubectl --kubeconfig=./kubeconfig config use-context kind
+$ kubectl --kubeconfig=./kubeconfig get all -A
+```
