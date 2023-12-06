@@ -25,9 +25,7 @@ spec:
       privileged: true
       readOnlyRootFilesystem: true
     command:
-    - kind
-    - create
-    - cluster
+    - /usr/local/bin/kind-create-cluster
     - --config
     - /etc/kind-cluster-rootless.yaml
     env:

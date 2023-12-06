@@ -93,4 +93,11 @@ jobs:
       - run: kubectl describe pod/kind-cluster
       - run: kubectl exec pod/kind-cluster -- podman ps -a
       - run: kubectl exec pod/kind-cluster -- kubectl get all -A
+      - run: kubectl delete pod/kind-cluster
+      - run: kubectl apply -f - < kind-cluster-pod-k3s.yaml
+      - run: while ! kubectl get pod/kind-cluster -o jsonpath="{.status.containerStatuses[0].state['running','terminated'].startedAt}" | grep . ; do kubectl get pod/kind-cluster ; sleep 5 ; done
+      - run: kubectl logs pod/kind-cluster -c create-cluster
+      - run: kubectl logs pod/kind-cluster
+      - run: while ! kubectl exec pod/kind-cluster -- curl -ks https://127.0.0.1:6443/ ; do sleep 1 ; done
+      - run: kubectl exec pod/kind-cluster -- kubectl get all -A
 

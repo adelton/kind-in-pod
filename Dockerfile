@@ -4,6 +4,7 @@ RUN curl -Lso /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux
 RUN chmod +x /usr/local/bin/kind
 RUN sed -i 's/utsns=.*/utsns="private"/; s/cgroups=.*/cgroups="enabled"/; s/runtime=.*/runtime="runc"/' /etc/containers/containers.conf
 COPY kind-cluster.yaml kind-cluster-rootless.yaml /etc/
+COPY kind-create-cluster.sh /usr/local/bin/kind-create-cluster
 ENV KIND_EXPERIMENTAL_PROVIDER podman
 ENV KUBECONFIG /var/lib/containers/kubeconfig
 ENTRYPOINT trap : TERM INT; sleep infinity & wait
