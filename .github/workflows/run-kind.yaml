@@ -29,6 +29,14 @@ jobs:
       - name: Set sudo podman 3 env
         run: echo "podman=sudo -E XDG_RUNTIME_DIR= podman" >> $GITHUB_ENV
         if: matrix.style == 'rootful' && matrix.podman-version == '3'
+      - name: Enable cpu cgroup delegation
+        run: |
+          for i in /sys/fs/cgroup/user.slice/cgroup.subtree_control \
+            /sys/fs/cgroup/user.slice/user-$(id -u).slice/cgroup.subtree_control \
+            /sys/fs/cgroup/user.slice/user-$(id -u).slice/user@$(id -u).service/cgroup.subtree_control ; do \
+            echo '+cpu' | sudo tee -a $i ; \
+          done
+        if: matrix.style == 'rootless'
       - name: Build image
         run: $podman build -t localhost/kind .
       - run: sudo modprobe ip6_tables
