@@ -1,0 +1,19 @@
+{
+     "name": "kind",
+     "id": "7beee7286e2c3a88e9dd722262253e10087cfc322dc1a9302c432479809caa88",
+     "driver": "bridge",
+     "network_interface": "podman1",
+     "created": "2023-12-06T07:53:45.286829744Z",
+     "subnets": [
+          {
+               "subnet": "10.89.0.0/24",
+               "gateway": "10.89.0.1"
+          }
+     ],
+     "ipv6_enabled": false,
+     "internal": false,
+     "dns_enabled": true,
+     "ipam_options": {
+          "driver": "host-local"
+     }
+}
