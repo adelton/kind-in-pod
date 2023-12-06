@@ -26,6 +26,9 @@ jobs:
       - name: Set sudo podman env
         run: echo "podman=sudo podman" >> $GITHUB_ENV
         if: matrix.style == 'rootful'
+      - name: Set sudo podman 3 env
+        run: echo "podman=sudo -E XDG_RUNTIME_DIR= podman" >> $GITHUB_ENV
+        if: matrix.style == 'rootful' && matrix.podman-version == '3'
       - name: Build image
         run: $podman build -t localhost/kind .
       - name: Run the podman container
