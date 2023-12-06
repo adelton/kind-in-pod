@@ -74,10 +74,10 @@ jobs:
       KUBECONFIG: /etc/rancher/k3s/k3s.yaml
     steps:
       - uses: actions/checkout@v3
-      - name: Build image
-        run: docker build -t localhost/kind .
       - name: Install and setup K3s
         run: curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode 644
+      - name: Build image
+        run: docker build -t localhost/kind .
       - name: Wait for the cluster to become ready
         run: while ! kubectl get nodes ; do sleep 5 ; done ; kubectl get nodes -o jsonpath='{.items[*].metadata.name}' | xargs kubectl wait --for=condition=ready node
       - run: kubectl get all -A
