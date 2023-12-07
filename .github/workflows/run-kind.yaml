@@ -41,10 +41,11 @@ jobs:
         if: matrix.style == 'rootless'
       - name: Build image
         run: $podman build -t localhost/kind .
-      - run: sudo modprobe ip6_tables
-        if: matrix.style == 'rootless'
       - name: Create a volume
         run: $podman volume create kind-data
+      - name: Network definition for rootless
+        run: echo "podman_run_opts=-v $(pwd)/kind-network.yaml:/var/lib/containers/storage/networks/kind.json" >> $GITHUB_ENV
+        if: matrix.style == 'rootless'
       - name: Network definition for rootful
         run: echo "podman_run_opts=-v $(pwd)/kind-network.yaml:/etc/containers/networks/kind.json" >> $GITHUB_ENV
         if: matrix.style == 'rootful'
