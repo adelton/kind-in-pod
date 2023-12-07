@@ -42,6 +42,7 @@ jobs:
       - name: Build image
         run: $podman build -t localhost/kind .
       - run: sudo modprobe ip6_tables
+        if: matrix.style == 'rootless'
       - name: Create a volume
         run: $podman volume create kind-data
       - name: Network definition for rootful
