@@ -168,7 +168,7 @@ $ podman run -d --privileged --name kind -v kind-data:/var/lib/containers localh
 $ podman exec -ti kind kind create cluster ...
 ```
 
-We can they try that the cluster works, and try to remove and recreate
+We can then try that the cluster works, remove and recreate
 the container, and manually run the podman container in that container again:
 ```
 $ podman exec -ti kind kubectl get all -A
