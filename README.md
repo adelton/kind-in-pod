@@ -22,7 +22,7 @@ image was based on as of 2023-12-05.
 We start our investigatory path with a rootless podman container
 with podman installed in it, to which we install **kind**:
 
-```
+```console
 $ podman run --rm -ti --privileged -h container quay.io/podman/stable
 [root@container /]# curl -Lso /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
 [root@container /]# chmod +x /usr/local/bin/kind
@@ -36,7 +36,7 @@ Command Output: Error: invalid config provided: cannot set hostname when running
 ```
 
 The first error can be resolved by
-```
+```console
 [root@container /]# sed -i 's/utsns=.*/utsns="private"/' /etc/containers/containers.conf
 ```
 
@@ -49,7 +49,7 @@ ERROR: failed to create cluster: could not find a log line that matches "Reached
 Since we used the `--retain` argument, the `kind-control-plane`
 container created by **kind** stayed around and we can check what it
 reported:
-```
+```console
 [root@container /]# podman logs kind-control-plane
 INFO: running in a user namespace (experimental)
 ERROR: UserNS: cpu controller needs to be delegated
@@ -58,7 +58,7 @@ ERROR: UserNS: cpu controller needs to be delegated
 The solution is to add `; s/cgroups=.*/cgroups="enabled"/` to the `sed`
 command used to tweak `/etc/containers/containers.conf`. This change
 gets us to
-```
+```console
 [root@container /]# kind create cluster --retain
 enabling experimental podman provider
 Creating cluster "kind" ...
@@ -76,7 +76,7 @@ W1205 16:36:20.932066     134 initconfiguration.go:332] [config] WARNING: Ignore
 
 The `podman logs kind-control-plane` now has just systemd startup
 messages but we can continue the debugging with
-```
+```console
 [root@container /]# podman exec kind-control-plane journalctl -l
 ```
 where
@@ -99,7 +99,7 @@ nodes:
         feature-gates: KubeletInUserNamespace=true
 ```
 we can actually get the initial step pass:
-```
+```console
 [root@container /]# kind create cluster --retain --config kind-cluster.yaml
 enabling experimental podman provider
 Creating cluster "kind" ...
@@ -118,7 +118,7 @@ Have a nice day! 👋
 ```
 
 We can then use
-```
+```console
 [root@container /]# podman exec kind-control-plane kubectl get all -A
 ```
 to check what's in the Kubernetes-in-podman-in-podman cluster by
@@ -131,7 +131,7 @@ to build a container image which could be used in various scenarios.
 
 The basic use then changes to
 
-```
+```console
 $ podman build -t localhost/kind .
 $ podman run -ti --privileged --name kind localhost/kind \
     kind create cluster --config /etc/kind-cluster-rootless.yaml
@@ -147,7 +147,7 @@ we can add the Kubernetes client to the container image and try that.
 However, with the `kind create cluster` command finishing, the
 container stopped as well. We might want to set the `ENTRYPOINT`
 to just infinite sleep, recreate the container with just
-```
+```console
 $ podman run -d --privileged --name kind localhost/kind
 ```
 and then `podman exec` the commands in it.
@@ -162,7 +162,7 @@ with the data volume while not losing the status.
 
 Since podman stores most everything under `/var/lib/containers`,
 a good start would be
-```
+```console
 $ podman volume create kind-data
 $ podman run -d --privileged --name kind -v kind-data:/var/lib/containers localhost/kind
 $ podman exec -ti kind kind create cluster ...
@@ -170,7 +170,7 @@ $ podman exec -ti kind kind create cluster ...
 
 We can they try that the cluster works, and try to remove and recreate
 the container, and manually run the podman container in that container again:
-```
+```console
 $ podman exec -ti kind kubectl get all -A
 $ podman rm -f kind
 $ podman run -d --privileged --name kind -v kind-data:/var/lib/containers localhost/kind
@@ -200,7 +200,7 @@ recreated.
 
 By default the API server runs on a randomly assigned port in the
 podman cluster:
-```
+```console
 $ podman exec -ti kind kubectl cluster-info --context kind-kind
 Kubernetes control plane is running at https://127.0.0.1:33997
 ```
@@ -219,17 +219,17 @@ needs to be built and then `k3s ctr images import`ed for K3s to be
 able to use the image.
 
 Then it should be a matter of
-```
+```console
 $ kubectl apply -f - < kind-cluster-pod-k3s.yaml
 ```
 and checking the progress with
-```
+```console
 $ kubectl logs -f pod/kind-cluster -c create-cluster
 $ kubectl logs pod/kind-cluster
 ```
 
 Eventually,
-```
+```console
 $ kubectl exec pod/kind-cluster -- kubectl get all -A
 ```
 will show a **kind** Kubernetes cluster withing a K3s Kubernetes
@@ -247,14 +247,14 @@ the **kind** cluster within is not encrypted. That is fine for the
 testing purposes but it also means that we don't have an end-to-end
 HTTPS connection to use the client certificate we can see in
 
-```
+```console
 $ kubectl exec pod/kind-cluster -- cat /var/lib/containers/kubeconfig
 ```
 
 Instead we can create for example a separate cluster-admin Service
 Account and use its token to access te API server of the **kind**
 cluster:
-```
+```console
 $ kubectl exec pod/kind-cluster -- kubectl create serviceaccount -n default admin
 $ kubectl exec pod/kind-cluster -- \
     kubectl patch clusterrolebinding cluster-admin --type=json \
@@ -277,7 +277,7 @@ K3s-specific [kind-cluster-pod-k3s.yaml](kind-cluster-pod-k3s.yaml).
 The main difference is the image which is defined as the internal
 registry `image-registry.openshift-image-registry.svc:5000/kind/kind`,
 and the use of OpenShift's Route instead of the Traefik ingress. Try
-```
+```console
 $ diff -u kind-cluster-pod-k3s.yaml kind-cluster-pod-openshift.yaml
 ```
 to see what exactly is different.
@@ -290,40 +290,40 @@ value to match that location. We can also build the image locally with
 By default the registry on the OpenShift cluster is not accessible from
 outside of the cluster. We can enable it with
 
-```
+```console
 $ oc --context admin patch configs.imageregistry.operator.openshift.io/cluster --patch '{"spec":{"defaultRoute":true}}' --type=merge
 ```
 and we get credentials for podman with
-```
+```console
 $ REGISTRY=$(oc --context admin get route default-route -n openshift-image-registry --template='{{ .spec.host }}')
 $ podman login -u ignored -p $(oc whoami -t) $REGISTRY
 ```
 
 We then create a new project (== namespace) and push the image to the
 internal registry, to that new namespace:
-```
+```console
 $ oc new-project kind
 $ podman push localhost/kind $REGISTRY/kind/kind
 ```
 
 Since we run the containers as privileged, we need to give the
 `default` ServiceAccount the `privileged` SCC:
-```
+```console
 $ oc --context admin adm policy add-scc-to-user privileged -z default -n kind
 ```
 
 Then we can create the Pod
-```
+```console
 $ oc apply -f - < kind-cluster-pod-openshift.yaml
 ```
 and when everything passes, we get the **kind** Kubernetes cluster in
 an OpenShift Pod:
-```
+```console
 $ oc exec kind-cluster -- kubectl get all -A
 ```
 
 Getting access to the cluster is then very similar to the setup on K3s:
-```
+```console
 $ oc exec pod/kind-cluster -- kubectl create serviceaccount -n default admin
 $ oc exec pod/kind-cluster -- \
     kubectl patch clusterrolebinding cluster-admin --type=json \
