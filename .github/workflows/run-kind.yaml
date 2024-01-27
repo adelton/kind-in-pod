@@ -71,7 +71,7 @@ jobs:
   kind-in-k3s:
     name: Kind in K3s
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
+    timeout-minutes: 60
     env:
       KUBECONFIG: /etc/rancher/k3s/k3s.yaml
     steps:
@@ -116,3 +116,8 @@ jobs:
 
       - run: kubectl --kubeconfig=./kubeconfig get all -A
 
+      - name: Debug with upterm on failure
+        if: ${{ failure() }}
+        uses: lhotari/action-upterm@v1
+        with:
+          limit-access-to-actor: true
