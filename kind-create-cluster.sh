@@ -15,5 +15,4 @@ if podman ps -a --noheading | grep -q . ; then
 fi
 
 set -x
-kind create cluster $OPTS "$@"
-
+kind create cluster $OPTS "$@" && podman stop --all

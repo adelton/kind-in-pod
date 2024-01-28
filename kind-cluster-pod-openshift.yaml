@@ -51,7 +51,11 @@ spec:
     command:
     - bash
     - -c
-    - 'podman start --all && sleep infinity'
+    - 'trap : TERM INT ; podman start --all && sleep infinity & wait'
+    lifecycle:
+      preStop:
+        exec:
+          command: ['podman', 'stop', '--all', '-t', '28']
     env:
     - name: TMPDIR
       value: /tmp
