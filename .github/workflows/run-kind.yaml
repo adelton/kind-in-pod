@@ -19,7 +19,7 @@ jobs:
     env:
       kind_create_opts: --config /etc/kind-cluster.yaml
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install podman 4.*
         uses: ./.github/actions/install-podman-4
         if: matrix.podman-version == '4'
@@ -75,7 +75,7 @@ jobs:
     env:
       KUBECONFIG: /etc/rancher/k3s/k3s.yaml
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install and setup K3s
         run: curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode 644
       - name: Build image
