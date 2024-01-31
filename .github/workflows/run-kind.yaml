@@ -7,112 +7,62 @@ on:
   workflow_dispatch:
 
 jobs:
-  kind-in-podman:
-    name: Kind in podman
+  kind-in-microshift:
+    name: Kind in MicroShift
     runs-on: ubuntu-22.04
-    strategy:
-      fail-fast: false
-      matrix:
-        style: [ rootless, rootful ]
-        podman-version: [ 3, 4 ]
-    timeout-minutes: 15
+    timeout-minutes: 60
     env:
-      kind_create_opts: --config /etc/kind-cluster.yaml
+      CRIO_VERSION: 1.25
+      MICROSHIFT_VERSION: latest-4.15/el9/os/Packages/microshift-4.15.0~rc.4-202401262049.p0.gd05be5f.assembly.rc.4.el9__x86_64/microshift-4.15.0~rc.4-202401262049.p0.gd05be5f.assembly.rc.4.el9.x86_64.rpm
     steps:
       - uses: actions/checkout@v4
-      - name: Install podman 4.*
-        uses: ./.github/actions/install-podman-4
-        if: matrix.podman-version == '4'
-      - name: Set podman env
-        run: echo "podman=podman" >> $GITHUB_ENV
-      - name: Set sudo podman env
-        run: echo "podman=sudo podman" >> $GITHUB_ENV
-        if: matrix.style == 'rootful'
-      - name: Set sudo podman 3 env
-        run: echo "podman=sudo -E XDG_RUNTIME_DIR= podman" >> $GITHUB_ENV
-        if: matrix.style == 'rootful' && matrix.podman-version == '3'
-      - name: Enable cpu cgroup delegation
+      - run: |
+          sudo apt update \
+          && sudo apt install -y openvswitch-switch network-manager
+      - run: sudo ln -s openvswitch-switch.service /lib/systemd/system/openvswitch.service
+      - run: sudo systemctl daemon-reload
+      - name: Install CRI-O
         run: |
-          for i in /sys/fs/cgroup/user.slice/cgroup.subtree_control \
-            /sys/fs/cgroup/user.slice/user-$(id -u).slice/cgroup.subtree_control \
-            /sys/fs/cgroup/user.slice/user-$(id -u).slice/user@$(id -u).service/cgroup.subtree_control ; do \
-            echo '+cpu' | sudo tee -a $i ; \
-          done
-        if: matrix.style == 'rootless'
-      - name: Build image
-        run: $podman build -t localhost/kind .
-      - name: Create a volume
-        run: $podman volume create kind-data
-      - name: Network definition for rootless
-        run: echo "podman_run_opts=-v $(pwd)/kind-network.yaml:/var/lib/containers/storage/networks/kind.json" >> $GITHUB_ENV
-        if: matrix.style == 'rootless'
-      - name: Network definition for rootful
-        run: echo "podman_run_opts=-v $(pwd)/kind-network.yaml:/etc/containers/networks/kind.json" >> $GITHUB_ENV
-        if: matrix.style == 'rootful'
-      - name: Run the podman container
-        run: $podman run -d --privileged --read-only --name kind -v kind-data:/var/lib/containers $podman_run_opts -p 6443:6443 localhost/kind
-      - name: Cluster configuration for rootless
-        run: echo "kind_create_opts=--config /etc/kind-cluster-rootless.yaml" >> $GITHUB_ENV
-        if: matrix.style == 'rootless'
-      - name: Create kind cluster
-        run: $podman exec kind kind create cluster --retain $kind_create_opts
-      - run: $podman exec kind podman logs kind-control-plane
-        if: ${{ failure() }}
-      - run: $podman exec kind kubectl cluster-info --context kind-kind
-      - run: $podman exec -ti kind kubectl wait --for=condition=ready -n kube-system pod/etcd-kind-control-plane pod/kube-apiserver-kind-control-plane --timeout=60s
-      - run: $podman exec kind kubectl get all -A
-      - run: $podman exec kind curl -k https://127.0.0.1:6443/
-      - run: $podman rm -f kind
-      - run: $podman run -d --privileged --read-only --name kind -v kind-data:/var/lib/containers $podman_run_opts -p 6443:6443 localhost/kind
-      - run: $podman exec -ti kind podman start --all
-      - run: $podman exec -ti kind podman wait --condition=running kind-control-plane ; sleep 10
-      - run: $podman exec kind kubectl get all -A
+          sudo mkdir -p /etc/apt/keyrings \
+          && curl -fsSL https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_$(lsb_release -rs)/Release.key \
+            | gpg --dearmor \
+            | sudo tee /etc/apt/keyrings/devel_kubic_libcontainers_stable.gpg > /dev/null \
+          && echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/devel_kubic_libcontainers_stable.gpg] \
+            https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_$(lsb_release -rs)/ /" \
+            | sudo tee /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list > /dev/null \
+          && curl -fsSL https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/$CRIO_VERSION/xUbuntu_$(lsb_release -rs)/Release.key \
+            | gpg --dearmor \
+            | sudo tee /etc/apt/keyrings/devel_kubic_libcontainers_crio.gpg > /dev/null \
+          && echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/devel_kubic_libcontainers_crio.gpg] \
+            https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/$CRIO_VERSION/xUbuntu_$(lsb_release -rs)/ /" \
+            | sudo tee /etc/apt/sources.list.d/devel:kubic:libcontainers:stable:cri-o:$CRIO_VERSION.list > /dev/null \
+          && sudo apt update \
+          && sudo apt install -y cri-o crun cri-tools containernetworking-plugins
+      - run: sudo mkdir -p /var/run/crio /var/lib/crio
+      - run: ls -la /etc/cni/net.d && cat /etc/cni/net.d/100-crio-bridge.conf
+      - run: wc -l /etc/crio/crio.conf && cat /etc/crio/crio.conf
+      - run: sudo sed -i '/^# plugin_dirs/,/^# \]/s/^# //; s%/opt/cni/bin/%/usr/lib/cni/%' /etc/crio/crio.conf
+      - run: echo '${{ secrets.PULL_SECRET }}' > openshift-pull-secret && sudo mv openshift-pull-secret /etc/crio/ && sudo chown root:root /etc/crio/openshift-pull-secret && sudo chmod 600 /etc/crio/openshift-pull-secret
+      - run: |
+          for i in $MICROSHIFT_VERSION ${MICROSHIFT_VERSION/x86_64\/microshift-/x86_64\/microshift-networking-} ${MICROSHIFT_VERSION/x86_64\/microshift-/x86_64\/microshift-olm-} ; do \
+            curl -LO https://mirror.openshift.com/pub/openshift-v4/x86_64/microshift/ocp/$i ; done
+      - run: for i in *.rpm ; do rpm2cpio $i | ( cd / && sudo cpio -id ) ; done
+      - run: sudo cp crio-crun.conf /etc/crio/crio.conf.d/crun.conf
+      - run: sudo systemctl daemon-reload
 
-  kind-in-k3s:
-    name: Kind in K3s
-    runs-on: ubuntu-22.04
-    timeout-minutes: 15
-    env:
-      KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install and setup K3s
-        run: curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode 644
-      - name: Build image
-        run: docker build -t localhost/kind .
-      - name: Wait for the cluster to become ready
-        run: while ! kubectl get nodes ; do sleep 5 ; done ; kubectl get nodes -o jsonpath='{.items[*].metadata.name}' | xargs kubectl wait --for=condition=ready node
+      - run: sudo systemctl enable crio.service microshift.service --now
+      - run: sudo systemctl status crio.service
+      - run: sudo crictl --version
+      - run: sudo crictl info
+      - run: sudo systemctl status microshift.service
+      - run: mkdir -p ~/.kube && sudo cat /var/lib/microshift/resources/kubeadmin/kubeconfig > ~/.kube/config
       - run: kubectl get all -A
-      - run: docker save localhost/kind | sudo k3s ctr images import -
-      - run: sudo k3s ctr images ls
-      - run: while ! kubectl get serviceaccount/default ; do sleep 5 ; done
-      - run: while ! kubectl get -n kube-system service/traefik ; do sleep 5 ; done
-      - run: kubectl apply -f - < kind-cluster-pod-k3s.yaml
-      - run: while ! kubectl get pod/kind-cluster -o jsonpath="{.status.initContainerStatuses[0].state['running','terminated'].startedAt}" | grep . ; do kubectl get pod/kind-cluster ; sleep 5 ; done
-      - run: kubectl logs -f pod/kind-cluster -c create-cluster
-      - run: while ! kubectl get pod/kind-cluster -o jsonpath="{.status.containerStatuses[0].state['running','terminated'].startedAt}" | grep . ; do kubectl get pod/kind-cluster ; sleep 5 ; done
-      - run: kubectl logs pod/kind-cluster
-      - run: kubectl get pod/kind-cluster
-      - run: kubectl describe pod/kind-cluster
-      - run: kubectl exec pod/kind-cluster -- podman ps -a
-      - run: while ! kubectl exec pod/kind-cluster -- curl -ks https://127.0.0.1:6443/ ; do sleep 1 ; done
-      - run: kubectl exec pod/kind-cluster -- kubectl get all -A
 
-      - run: kubectl exec pod/kind-cluster -- kubectl create serviceaccount -n default admin
-      - run: kubectl exec pod/kind-cluster -- kubectl patch clusterrolebinding cluster-admin --type=json -p='[{"op":"add", "path":"/subjects/-", "value":{"kind":"ServiceAccount", "namespace":"default", "name":"admin" } }]'
-      - run: kubectl --kubeconfig=./kubeconfig config set-cluster kind --server=https://$( kubectl get -n kube-system service/traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' )/kind-api --insecure-skip-tls-verify=true
-      - run: kubectl --kubeconfig=./kubeconfig config set-credentials kind-admin --token=$( kubectl exec pod/kind-cluster -- kubectl create token -n default admin )
-      - run: kubectl --kubeconfig=./kubeconfig config set-context kind --cluster=kind --user=kind-admin
-      - run: kubectl --kubeconfig=./kubeconfig config use-context kind
-      - run: kubectl --kubeconfig=./kubeconfig get all -A
-
-      - run: kubectl delete pod/kind-cluster
-      - run: kubectl apply -f - < kind-cluster-pod-k3s.yaml
-      - run: while ! kubectl get pod/kind-cluster -o jsonpath="{.status.containerStatuses[0].state['running','terminated'].startedAt}" | grep . ; do kubectl get pod/kind-cluster ; sleep 5 ; done
-      - run: kubectl logs pod/kind-cluster -c create-cluster
-      - run: kubectl logs pod/kind-cluster
-      - run: while ! kubectl exec pod/kind-cluster -- curl -ks https://127.0.0.1:6443/ ; do sleep 1 ; done
-      - run: kubectl exec pod/kind-cluster -- kubectl get all -A
-
-      - run: kubectl --kubeconfig=./kubeconfig get all -A
+      - name: Debug with upterm on failure
+        if: always()
+        uses: lhotari/action-upterm@v1
+        with:
+          limit-access-to-actor: true
 
