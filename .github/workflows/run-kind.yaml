@@ -13,7 +13,7 @@ jobs:
     timeout-minutes: 60
     env:
       CRIO_VERSION: 1.25
-      MICROSHIFT_VERSION: latest-4.15/el9/os/Packages/microshift-4.15.0~rc.4-202401262049.p0.gd05be5f.assembly.rc.4.el9__x86_64/microshift-4.15.0~rc.4-202401262049.p0.gd05be5f.assembly.rc.4.el9.x86_64.rpm
+      MICROSHIFT_VERSION: latest-4.14/el9/os/Packages/microshift-4.14.0~rc.7-202310241737.p0.g1586504.assembly.rc.7.el9__x86_64/microshift-4.14.0~rc.7-202310241737.p0.g1586504.assembly.rc.7.el9.x86_64.rpm
     steps:
       - uses: actions/checkout@v4
       - run: |
@@ -46,7 +46,7 @@ jobs:
       - run: sudo sed -i '/^# plugin_dirs/,/^# \]/s/^# //; s%/opt/cni/bin/%/usr/lib/cni/%' /etc/crio/crio.conf
       - run: echo '${{ secrets.PULL_SECRET }}' > openshift-pull-secret && sudo mv openshift-pull-secret /etc/crio/ && sudo chown root:root /etc/crio/openshift-pull-secret && sudo chmod 600 /etc/crio/openshift-pull-secret
       - run: |
-          for i in $MICROSHIFT_VERSION ${MICROSHIFT_VERSION/x86_64\/microshift-/x86_64\/microshift-networking-} ${MICROSHIFT_VERSION/x86_64\/microshift-/x86_64\/microshift-olm-} ; do \
+          for i in $MICROSHIFT_VERSION ${MICROSHIFT_VERSION/x86_64\/microshift-/x86_64\/microshift-networking-} ; do \
             curl -LO https://mirror.openshift.com/pub/openshift-v4/x86_64/microshift/ocp/$i ; done
       - run: for i in *.rpm ; do rpm2cpio $i | ( cd / && sudo cpio -id ) ; done
       - run: sudo cp crio-crun.conf /etc/crio/crio.conf.d/crun.conf
