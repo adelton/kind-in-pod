@@ -42,8 +42,7 @@ jobs:
           && sudo apt install -y cri-o crun cri-tools containernetworking-plugins
       - run: sudo mkdir -p /var/run/crio /var/lib/crio
       - run: ls -la /etc/cni/net.d && cat /etc/cni/net.d/100-crio-bridge.conf
-      - run: wc -l /etc/crio/crio.conf && cat /etc/crio/crio.conf
-      - run: sudo sed -i '/^# plugin_dirs/,/^# \]/s/^# //; s%/opt/cni/bin/%/usr/lib/cni/%' /etc/crio/crio.conf
+      - run: ( echo '[crio.network]' ; echo 'plugin_dirs = [ "/usr/lib/cni/" ]' ) | sudo tee /etc/crio/crio.conf.d/zz-plugin_dirs.conf
       - run: echo '${{ secrets.PULL_SECRET }}' > openshift-pull-secret && sudo mv openshift-pull-secret /etc/crio/ && sudo chown root:root /etc/crio/openshift-pull-secret && sudo chmod 600 /etc/crio/openshift-pull-secret
       - run: |
           for i in $MICROSHIFT_VERSION ${MICROSHIFT_VERSION/x86_64\/microshift-/x86_64\/microshift-networking-} ; do \
