@@ -9,10 +9,11 @@ on:
 jobs:
   kind-in-podman:
     name: Kind in podman
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ 22.04, 24.04 ]
         style: [ rootless, rootful ]
         inner-podman-version: [ v4.8, v4.9 ]
     timeout-minutes: 15
@@ -22,6 +23,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install podman 4.*
         uses: ./.github/actions/install-podman-4
+        if: matrix.os == '22.04'
       - name: Set podman env
         run: echo "podman=podman" >> $GITHUB_ENV
       - name: Set sudo podman env
@@ -68,7 +70,7 @@ jobs:
 
   kind-in-k3s:
     name: Kind in K3s
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       KUBECONFIG: /etc/rancher/k3s/k3s.yaml
