@@ -15,6 +15,7 @@ jobs:
       matrix:
         style: [ rootless, rootful ]
         podman-version: [ 3, 4 ]
+        inner-podman-version: [ v4.8, v4.9 ]
     timeout-minutes: 15
     env:
       kind_create_opts: --config /etc/kind-cluster.yaml
@@ -39,6 +40,8 @@ jobs:
             echo '+cpu' | sudo tee -a $i ; \
           done
         if: matrix.style == 'rootless'
+      - name: Use podman ${{ matrix.inner-podman-version }} in the container
+        run: sed -i 's%^FROM quay\.io/podman/stable.*%FROM quay.io/podman/stable:${{ matrix.inner-podman-version }}%' Dockerfile
       - name: Build image
         run: $podman build -t localhost/kind .
       - name: Create a volume
