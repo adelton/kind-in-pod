@@ -24,7 +24,7 @@ with podman installed in it, to which we install **kind**:
 
 ```
 $ podman run --rm -ti --privileged -h container quay.io/podman/stable
-[root@container /]# curl -Lso /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
+[root@container /]# curl -Lso /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64
 [root@container /]# chmod +x /usr/local/bin/kind
 [root@container /]# kind create cluster --retain
 enabling experimental podman provider
