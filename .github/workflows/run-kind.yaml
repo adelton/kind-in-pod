@@ -93,6 +93,7 @@ jobs:
       - run: kubectl apply -f - < kind-cluster-pod-k3s.yaml
       - run: while ! kubectl get pod/kind-cluster -o jsonpath="{.status.initContainerStatuses[0].state['running','terminated'].startedAt}" | grep . ; do kubectl get pod/kind-cluster ; sleep 5 ; done
       - run: kubectl logs -f pod/kind-cluster -c create-cluster
+      - run: kubectl get pod/kind-cluster -o jsonpath="{.status.initContainerStatuses[0].state['terminated'].exitCode}" | grep ^0$
       - run: while ! kubectl get pod/kind-cluster -o jsonpath="{.status.containerStatuses[0].state['running','terminated'].startedAt}" | grep . ; do kubectl get pod/kind-cluster ; sleep 5 ; done
       - run: kubectl logs pod/kind-cluster
       - run: kubectl get pod/kind-cluster
