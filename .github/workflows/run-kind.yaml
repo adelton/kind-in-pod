@@ -14,7 +14,6 @@ jobs:
       fail-fast: false
       matrix:
         style: [ rootless, rootful ]
-        podman-version: [ 3, 4 ]
         inner-podman-version: [ v4.8, v4.9 ]
     timeout-minutes: 15
     env:
@@ -23,15 +22,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install podman 4.*
         uses: ./.github/actions/install-podman-4
-        if: matrix.podman-version == '4'
       - name: Set podman env
         run: echo "podman=podman" >> $GITHUB_ENV
       - name: Set sudo podman env
         run: echo "podman=sudo podman" >> $GITHUB_ENV
         if: matrix.style == 'rootful'
-      - name: Set sudo podman 3 env
-        run: echo "podman=sudo -E XDG_RUNTIME_DIR= podman" >> $GITHUB_ENV
-        if: matrix.style == 'rootful' && matrix.podman-version == '3'
       - name: Enable cpu cgroup delegation
         run: |
           for i in /sys/fs/cgroup/user.slice/cgroup.subtree_control \
