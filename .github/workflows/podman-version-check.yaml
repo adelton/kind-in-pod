@@ -1,0 +1,16 @@
+name: Check that we know about latest Podman release
+
+on:
+  push:
+  workflow_dispatch:
+  schedule:
+    - cron: '18 6 * * 4'
+
+jobs:
+  podman-version-check:
+    runs-on: ubuntu-latest
+    steps:
+      - run: skopeo inspect docker://quay.io/podman/stable:latest > podman-latest.json
+      - run: diff -u <( skopeo inspect docker://quay.io/podman/stable:v5.0 | jq -r '.Digest' ) <( jq -r '.Digest' podman-latest.json )
+      - run: cat podman-latest.json
+        if: ${{ failure() }}
