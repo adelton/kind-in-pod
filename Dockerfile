@@ -1,4 +1,4 @@
-FROM quay.io/podman/stable:v4.9
+FROM quay.io/podman/stable
 RUN dnf install -y kubernetes-client && dnf clean all
 RUN curl -Lso /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64
 RUN chmod +x /usr/local/bin/kind
