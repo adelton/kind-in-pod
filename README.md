@@ -20,14 +20,14 @@ with podman installed in it, to which we install **kind**:
 
 ```
 $ podman run --rm -ti --privileged -h container quay.io/podman/stable
-[root@container /]# curl -Lso /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64
+[root@container /]# curl -Lso /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64
 [root@container /]# chmod +x /usr/local/bin/kind
 [root@container /]# kind create cluster --retain
 enabling experimental podman provider
 Creating cluster "kind" ...
- ✓ Ensuring node image (kindest/node:v1.30.0) 🖼 
+ ✓ Ensuring node image (kindest/node:v1.31.0) 🖼 
  ✗ Preparing nodes 📦  
-ERROR: failed to create cluster: command "podman run --name kind-control-plane --hostname kind-control-plane --label io.x-k8s.kind.role=control-plane --privileged --tmpfs /tmp --tmpfs /run --volume 4f378d29d556d1fea5120ee651938995646580b4a11966dc0f8b17f319da113d:/var:suid,exec,dev --volume /lib/modules:/lib/modules:ro -e KIND_EXPERIMENTAL_CONTAINERD_SNAPSHOTTER --detach --tty --net kind --label io.x-k8s.kind.cluster=kind -e container=podman --cgroupns=private --publish=127.0.0.1:39807:6443/tcp -e KUBECONFIG=/etc/kubernetes/admin.conf docker.io/kindest/node@sha256:047357ac0cfea04663786a612ba1eaba9702bef25227a794b52890dd8bcd692e" failed with error: exit status 125
+ERROR: failed to create cluster: command "podman run --name kind-control-plane --hostname kind-control-plane --label io.x-k8s.kind.role=control-plane --privileged --tmpfs /tmp --tmpfs /run --volume b9e7fff3d41084a5d37ae3e10287a5981bd5471b11ea928316e313530ed04d1a:/var:suid,exec,dev --volume /lib/modules:/lib/modules:ro -e KIND_EXPERIMENTAL_CONTAINERD_SNAPSHOTTER --detach --tty --net kind --label io.x-k8s.kind.cluster=kind -e container=podman --cgroupns=private --publish=127.0.0.1:45299:6443/tcp -e KUBECONFIG=/etc/kubernetes/admin.conf docker.io/kindest/node@sha256:53df588e04085fd41ae12de0c3fe4c72f7013bba32a20e7325357a1ac94ba865" failed with error: exit status 125
 Command Output: Error: invalid config provided: cannot set hostname when running in the host UTS namespace: invalid configuration
 ```
 
@@ -62,19 +62,19 @@ Deleted nodes: ["kind-control-plane"]
 [root@container /]# kind create cluster --retain
 enabling experimental podman provider
 Creating cluster "kind" ...
- ✓ Ensuring node image (kindest/node:v1.30.0) 🖼
+ ✓ Ensuring node image (kindest/node:v1.31.0) 🖼
  ✓ Preparing nodes 📦  
  ✓ Writing configuration 📜 
  ✗ Starting control-plane 🕹️ 
-ERROR: failed to create cluster: failed to init node with kubeadm: command "podman exec --privileged kind-control-plane kubeadm init --skip-phases=preflight --config=/kind/kubeadm.conf --skip-token-print --v=6" failed with error: exit status 1
-Command Output: I0620 07:31:15.446575     141 initconfiguration.go:260] loading configuration from "/kind/kubeadm.conf"
-W0620 07:31:15.447554     141 initconfiguration.go:348] [config] WARNING: Ignored YAML document with GroupVersionKind kubeadm.k8s.io/v1beta3, Kind=JoinConfiguration
+ERROR: failed to create cluster: failed to init node with kubeadm: command "podman exec --privileged kind-control-plane kubeadm init --config=/kind/kubeadm.conf --skip-token-print --v=6" failed with error: exit status 1
+Command Output: I0822 07:09:55.713029     142 initconfiguration.go:261] loading configuration from "/kind/kubeadm.conf"
+W0822 07:09:55.713401     142 common.go:101] your configuration file uses a deprecated API spec: "kubeadm.k8s.io/v1beta3" (kind: "ClusterConfiguration"). Please use 'kubeadm config migrate --old-config old.yaml --new-config new.yaml', which will write the new, similar spec using a newer API version.
 [...]
 [wait-control-plane] Waiting for the kubelet to boot up the control plane as static Pods from directory "/etc/kubernetes/manifests"
-[kubelet-check] Waiting for a healthy kubelet. This can take up to 4m0s
-[kubelet-check] The kubelet is not healthy after 4m0.001068813s
+[kubelet-check] Waiting for a healthy kubelet at http://127.0.0.1:10248/healthz. This can take up to 4m0s
+[kubelet-check] The kubelet is not healthy after 4m0.001229309s
 Unfortunately, an error has occurred:
-	The HTTP call equal to 'curl -sSL http://localhost:10248/healthz' returned error: Get "http://localhost:10248/healthz": context deadline exceeded
+	The HTTP call equal to 'curl -sSL http://127.0.0.1:10248/healthz' returned error: Get "http://127.0.0.1:10248/healthz": context deadline exceeded
 [...]
 ```
 
@@ -85,7 +85,7 @@ messages but we can continue the debugging with
 ```
 where
 ```
-Jun 20 07:31:17 kind-control-plane kubelet[180]: E0620 07:31:17.421418     180 kubelet.go:486] "Failed to create an oomWatcher (running in UserNS, Hint: enable KubeletInUserNamespace feature flag to ignore the error)" err="open /dev/kmsg: operation not permitted"
+Aug 22 07:09:57 kind-control-plane kubelet[181]: E0822 07:09:57.466990     181 kubelet.go:498] "Failed to create an oomWatcher (running in UserNS, Hint: enable KubeletInUserNamespace feature flag to ignore the error)" err="open /dev/kmsg: operation not permitted"
 ```
 seems the most relevant.
 
@@ -107,7 +107,7 @@ we can actually get the initial step pass:
 [root@container /]# kind create cluster --retain --config kind-cluster.yaml
 enabling experimental podman provider
 Creating cluster "kind" ...
- ✓ Ensuring node image (kindest/node:v1.30.0) 🖼
+ ✓ Ensuring node image (kindest/node:v1.31.0) 🖼
  ✓ Preparing nodes 📦  
  ✓ Writing configuration 📜 
  ✓ Starting control-plane 🕹️ 
@@ -118,7 +118,7 @@ You can now use your cluster with:
 
 kubectl cluster-info --context kind-kind
 
-Thanks for using kind! 😊
+Have a question, bug, or feature request? Let us know! https://kind.sigs.k8s.io/#community 🙂
 ```
 
 We can then use
