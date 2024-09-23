@@ -39,6 +39,8 @@ jobs:
         if: matrix.style == 'rootless'
       - name: Use podman ${{ matrix.inner-podman-version }} in the container
         run: sed -i 's%^FROM quay\.io/podman/stable.*%FROM quay.io/podman/stable:${{ matrix.inner-podman-version }}%' Dockerfile
+      - name: Allow the API server to be accessed from the host
+        run: sed -i 's/# apiServerAddress:/apiServerAddress:/' kind-cluster*.yaml
       - name: Build image
         run: $podman build -t localhost/kind .
       - name: Create a volume
@@ -62,6 +64,7 @@ jobs:
       - run: $podman exec -ti kind kubectl wait --for=condition=ready -n kube-system pod/etcd-kind-control-plane pod/kube-apiserver-kind-control-plane --timeout=60s
       - run: $podman exec kind kubectl get all -A
       - run: $podman exec kind curl -k https://127.0.0.1:6443/
+      - run: curl --cacert <( $podman exec kind bash -c 'cat $KUBECONFIG' | awk '/certificate-authority-data:/ { print $2 }' | base64 -d ) https://127.0.0.1:6443/
       - run: $podman rm -f kind
       - run: $podman run -d --privileged --read-only --name kind -v kind-data:/var/lib/containers $podman_run_opts -p 6443:6443 localhost/kind
       - run: $podman exec -ti kind podman start --all

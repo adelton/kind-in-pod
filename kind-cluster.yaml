@@ -4,3 +4,13 @@ nodes:
 - role: control-plane
 networking:
   apiServerPort: 6443
+  # apiServerAddress: 0.0.0.0
+# When the 0.0.0.0 is uncommented, we still want to have 127.0.0.1 in the certificate
+kubeadmConfigPatchesJSON6902:
+- group: kubeadm.k8s.io
+  version: v1beta3
+  kind: ClusterConfiguration
+  patch: |
+    - op: add
+      path: /apiServer/certSANs/-
+      value: 127.0.0.1
