@@ -15,7 +15,7 @@ jobs:
       matrix:
         os: [ 22.04, 24.04 ]
         style: [ rootless, rootful ]
-        inner-podman-version: [ v5.1, v5.2 ]
+        inner-podman-version: [ v5.2, v5.3 ]
     timeout-minutes: 15
     env:
       kind_create_opts: --config /etc/kind-cluster.yaml

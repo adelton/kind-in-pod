@@ -11,6 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: skopeo inspect docker://quay.io/podman/stable:latest > podman-latest.json
-      - run: diff -u <( skopeo inspect docker://quay.io/podman/stable:v5.2 | jq -r '.Digest' ) <( jq -r '.Digest' podman-latest.json )
+      - run: diff -u <( skopeo inspect docker://quay.io/podman/stable:v5.3 | jq -r '.Digest' ) <( jq -r '.Digest' podman-latest.json )
       - run: cat podman-latest.json
         if: ${{ failure() }}
