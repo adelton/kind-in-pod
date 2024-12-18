@@ -8,6 +8,13 @@ nodes:
     nodeRegistration:
       kubeletExtraArgs:
         feature-gates: KubeletInUserNamespace=true
+- role: worker
+  kubeadmConfigPatches:
+  - |
+    kind: JoinConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        feature-gates: KubeletInUserNamespace=true
 networking:
   apiServerPort: 6443
   # apiServerAddress: 0.0.0.0
