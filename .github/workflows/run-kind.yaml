@@ -16,12 +16,12 @@ jobs:
         os: [ 22.04, 24.04 ]
         arch: [ amd64, arm64 ]
         style: [ rootless, rootful ]
-        inner-podman-version: [ v5.2, v5.3 ]
+        inner-podman-version: [ v5.3, v5.4 ]
         exclude:
           - os: 22.04
             style: rootful
           - os: 22.04
-            inner-podman-version: v5.2
+            inner-podman-version: v5.3
     timeout-minutes: 15
     env:
       kind_create_opts: --config /etc/kind-cluster.yaml
