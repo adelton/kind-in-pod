@@ -77,7 +77,6 @@ jobs:
           $podman exec kind curl -sk https://127.0.0.1:6443/ | tee /dev/stderr | grep -q 'forbidden: User \\"system:anonymous\\" cannot get path'
       - run: |
           curl -s --cacert <( $podman exec kind bash -c 'cat $KUBECONFIG' | awk '/certificate-authority-data:/ { print $2 }' | base64 -d ) https://127.0.0.1:6443/ | tee /dev/stderr | grep -q 'forbidden: User \\"system:anonymous\\" cannot get path'
-      - run: $podman exec kind bash -c 'curl -s --cacert <( awk '"'"'/certificate-authority-data:/ { print $2 }'"'"' $KUBECONFIG | base64 -d ) -E <( awk '"'"'/client-certificate-data:/ { print $2 }'"'"' $KUBECONFIG | base64 -d ) --key <( awk '"'"'/client-key-data:/ { print $2 }'"'"' $KUBECONFIG | base64 -d ) https://127.0.0.1:6443/' | tee /dev/stderr | grep -Fq /apis/authentication.k8s.io/v1
       - run: curl -s --cacert <( $podman exec kind bash -c 'cat $KUBECONFIG' | awk '/certificate-authority-data:/ { print $2 }' | base64 -d ) -E <( $podman exec kind bash -c 'cat $KUBECONFIG' | awk '/client-certificate-data:/ { print $2 }' | base64 -d ) --key <( $podman exec kind bash -c 'cat $KUBECONFIG' | awk '/client-key-data:/ { print $2 }' | base64 -d ) https://127.0.0.1:6443/ | tee /dev/stderr | grep -Fq /apis/authentication.k8s.io/v1
       - run: $podman rm -f kind
       - run: $podman run -d --privileged --read-only --name kind -v kind-data:/var/lib/containers $podman_run_opts -p 6443:6443 localhost/kind
