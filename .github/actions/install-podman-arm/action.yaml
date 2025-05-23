@@ -1,8 +1,0 @@
-name: Install podman on ubuntu-*-arm
-runs:
-  using: composite
-  steps:
-    - run: |
-        sudo apt-get update -y
-        sudo apt-get install -y podman
-      shell: bash -euxo pipefail {0}

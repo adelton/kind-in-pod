@@ -30,8 +30,6 @@ jobs:
       - name: Install podman 4.*
         uses: ./.github/actions/install-podman-4
         if: matrix.os == '22.04'
-      - uses: ./.github/actions/install-podman-arm
-        if: matrix.os == '24.04' && matrix.arch == 'arm64'
       - name: Set podman env
         run: echo "podman=podman" >> $GITHUB_ENV
       - name: Set sudo podman env
