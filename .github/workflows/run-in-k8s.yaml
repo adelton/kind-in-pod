@@ -9,30 +9,107 @@ on:
     - cron: '23 6 2,16 * *'
 
 jobs:
-  kind-in-k3s:
-    name: Kind in K3s
+  kind-in-k8s:
+    name: Kind in ${{ matrix.kubernetes }} / ${{ matrix.runtime }}
     runs-on: ubuntu-24.04${{ matrix.arch == 'arm64' && '-arm' || '' }}
     strategy:
       fail-fast: false
       matrix:
         arch: [ amd64, arm64 ]
+        kubernetes: [ k3s, rke2, 'kubeadm init' ]
+        runtime: [ cri-o, containerd ]
+
     timeout-minutes: 15
-    env:
-      KUBECONFIG: /etc/rancher/k3s/k3s.yaml
     steps:
       - uses: actions/checkout@v4
+      - name: Install and setup CRI-O
+        run: |
+          CRIO_VERSION=v1.32
+          curl -fsSL https://pkgs.k8s.io/addons:/cri-o:/stable:/$CRIO_VERSION/deb/Release.key \
+              | gpg --dearmor | sudo tee /etc/apt/keyrings/cri-o-apt-keyring.gpg > /dev/null
+          echo "deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.gpg] https://pkgs.k8s.io/addons:/cri-o:/stable:/$CRIO_VERSION/deb/ /" \
+              | sudo tee /etc/apt/sources.list.d/cri-o.list
+
+          sudo apt update
+          sudo apt install -y cri-o
+
+          sudo cp /etc/cni/net.d/10-crio-bridge.conflist.disabled /etc/cni/net.d/10-crio-bridge.conflist
+          sudo systemctl start crio.service
+        if: matrix.runtime == 'cri-o'
       - name: Install and setup K3s
-        run: curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig-mode 644
+        run: |
+          export INSTALL_K3S_EXEC
+          if [ -e /var/run/crio/crio.sock ] ; then
+              INSTALL_K3S_EXEC='--container-runtime-endpoint /var/run/crio/crio.sock'
+          fi
+          curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig ~/.kube/config
+          sudo chown -R $( id -u ):$( id -g ) ~/.kube
+          if [ -e /var/run/crio/crio.sock ] ; then
+              ( echo '[crio.network]' ; echo 'plugin_dirs = [ "/var/lib/rancher/k3s/data/cni" ]' ) | sudo tee /etc/crio/crio.conf.d/20-cni.conf
+              sudo systemctl restart crio.service
+          fi
+        if: matrix.kubernetes == 'k3s'
+      - name: Install and setup RKE2
+        run: |
+          sudo mkdir -p /etc/rancher/rke2/config.yaml.d
+          if [ -e /var/run/crio/crio.sock ] ; then
+              echo 'container-runtime-endpoint: /var/run/crio/crio.sock' | sudo tee /etc/rancher/rke2/config.yaml.d/70-crio.yaml
+          fi
+          curl -sfL https://get.rke2.io | sudo sh -
+          sudo systemctl start rke2-server.service
+          systemctl status rke2-server.service
+
+          mkdir ~/.kube
+          sudo cat /etc/rancher/rke2/rke2.yaml > ~/.kube/config
+          sudo ln -s /var/lib/rancher/rke2/bin/kubectl /usr/local/bin
+
+          kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
+        if: matrix.kubernetes == 'rke2'
+      - name: Install and setup Kubernetes using kubeadm init
+        run: |
+          KUBERNETES_VERSION=v1.33
+          curl -fsSL https://pkgs.k8s.io/core:/stable:/$KUBERNETES_VERSION/deb/Release.key \
+              | gpg --dearmor | sudo tee /etc/apt/keyrings/kubernetes-apt-keyring.gpg > /dev/null
+          echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/$KUBERNETES_VERSION/deb/ /" \
+              | sudo tee /etc/apt/sources.list.d/kubernetes.list
+
+          sudo apt update
+          sudo apt install -y kubelet kubeadm kubectl kubernetes-cni
+
+          sudo modprobe br_netfilter
+          sudo sysctl -w net.ipv4.ip_forward=1
+          sudo sudo iptables -A FORWARD -o cni0 -j ACCEPT
+
+          if [ -e /var/run/crio/crio.sock ] ; then
+              CONFIG=k8s-initconfiguration-crio.yaml
+          else
+              sudo sed -i 's/disabled_plugins = \["cri"\]/### &/' /etc/containerd/config.toml
+              sudo systemctl restart containerd
+              CONFIG=k8s-initconfiguration-containerd.yaml
+          fi
+          sudo kubeadm init --config $CONFIG
+
+          mkdir ~/.kube
+          sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+          sudo chown $( id -u ):$( id -g ) ~/.kube/config
+
+          kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
+        if: matrix.kubernetes == 'kubeadm init'
       - name: Build image
         run: docker build -t localhost/kind .
+      - run: sudo skopeo copy docker-daemon:localhost/kind:latest containers-storage:localhost/kind
+        if: matrix.runtime == 'cri-o'
+      - run: docker save localhost/kind | sudo k3s ctr images import -
+        if: matrix.kubernetes == 'k3s' && matrix.runtime == 'containerd'
+      - run: docker save localhost/kind | sudo /var/lib/rancher/rke2/bin/ctr --address /run/k3s/containerd/containerd.sock -n k8s.io images import -
+        if: matrix.kubernetes == 'rke2' && matrix.runtime == 'containerd'
+
       - name: Wait for the cluster to become ready
         run: while ! kubectl get nodes ; do sleep 5 ; done ; kubectl get nodes -o jsonpath='{.items[*].metadata.name}' | xargs kubectl wait --for=condition=ready node
       - run: kubectl get all -A
-      - run: docker save localhost/kind | sudo k3s ctr images import -
-      - run: sudo k3s ctr images ls
       - run: while ! kubectl get serviceaccount/default ; do sleep 5 ; done
       - run: while ! kubectl get -n kube-system service/traefik ; do sleep 5 ; done
-      - run: kubectl apply -f - < kind-cluster-pod-k3s.yaml
+      - run: kubectl apply -f - < kind-cluster-pod.yaml
       - run: while ! kubectl get pod/kind-cluster -o jsonpath="{.status.initContainerStatuses[0].state['running','terminated'].startedAt}" | grep . ; do kubectl get pod/kind-cluster ; sleep 5 ; done
       - run: kubectl logs -f pod/kind-cluster -c create-cluster
       - run: kubectl describe pod/kind-cluster
@@ -56,7 +133,7 @@ jobs:
       - run: kubectl --kubeconfig=./kubeconfig get all -A
 
       - run: kubectl delete pod/kind-cluster
-      - run: kubectl apply -f - < kind-cluster-pod-k3s.yaml
+      - run: kubectl apply -f - < kind-cluster-pod.yaml
       - run: while ! kubectl get pod/kind-cluster -o jsonpath="{.status.containerStatuses[0].state['running','terminated'].startedAt}" | grep . ; do kubectl get pod/kind-cluster ; sleep 5 ; done
       - run: kubectl logs pod/kind-cluster -c create-cluster
       - run: kubectl logs pod/kind-cluster
