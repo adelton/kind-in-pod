@@ -254,18 +254,11 @@ use `readOnlyRootFilesystem: true`. It requires a bit of special
 handling, mounting `emptyDir` volumes to `/run` and `/tmp` and setting
 `TMPDIR=/tmp` to avoid the use of `/var/tmp`.
 
-Since the API server listens on 127.0.0.1 in the container, we
-expose it via a separate HTTP proxy, and configure an ingress to the
-K3s cluster. That means that within the K3s cluster, the traffic to
-the **kind** cluster within is not encrypted. That is fine for the
-testing purposes but it also means that we don't have an end-to-end
-HTTPS connection to use the client certificate we can see in
+To be able to access the API server from outside of the Pod,
+we define the `apiServerAddress` as 0.0.0.0, with Service giving
+it a static IP address in the cluster.
 
-```
-$ kubectl exec pod/kind-cluster -- cat /var/lib/containers/kubeconfig
-```
-
-Instead we can create for example a separate cluster-admin Service
+To authenticate, we can create for example a separate cluster-admin Service
 Account and use its token to access the API server of the **kind**
 cluster:
 ```
@@ -273,9 +266,9 @@ $ kubectl exec pod/kind-cluster -- kubectl create serviceaccount -n default admi
 $ kubectl exec pod/kind-cluster -- \
     kubectl patch clusterrolebinding cluster-admin --type=json \
     -p='[{"op":"add", "path":"/subjects/-", "value":{"kind":"ServiceAccount", "namespace":"default", "name":"admin" } }]'
-$ KIND_IP=$(kubectl get -n kube-system service/traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+$ KIND_ADDR=$(kubectl get service/kind-cluster -o jsonpath='{.spec.clusterIP}:{.spec.ports[0].port}')
 $ kubectl --kubeconfig=./kubeconfig config set-cluster kind \
-    --server=https://$KIND_IP/kind-api --insecure-skip-tls-verify=true
+    --server=https://$KIND_ADDR --insecure-skip-tls-verify=true
 $ kubectl --kubeconfig=./kubeconfig config set-credentials kind-admin \
     --token=$(kubectl exec pod/kind-cluster -- kubectl create token -n default admin)
 $ kubectl --kubeconfig=./kubeconfig config set-context kind --cluster=kind --user=kind-admin
