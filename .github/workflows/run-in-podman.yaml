@@ -43,8 +43,6 @@ jobs:
         if: matrix.style == 'rootless'
       - name: Use podman ${{ matrix.inner-podman-version }} in the container
         run: sed -i 's%^FROM quay\.io/podman/stable.*%FROM quay.io/podman/stable:${{ matrix.inner-podman-version }}%' Dockerfile
-      - name: Allow the API server to be accessed from the host
-        run: sed -i 's/# apiServerAddress:/apiServerAddress:/' kind-cluster*.yaml
       - name: Build image
         run: $podman build -t localhost/kind .
       - name: Create a volume
