@@ -2,11 +2,7 @@
 name: Kind in podman
 
 on:
-  push:
-  pull_request:
   workflow_dispatch:
-  schedule:
-    - cron: '21 6 2,16 * *'
 
 jobs:
   kind-in-podman:
