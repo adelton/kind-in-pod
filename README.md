@@ -266,14 +266,14 @@ $ kubectl exec pod/kind-cluster -- cat /var/lib/containers/kubeconfig
 ```
 
 Instead we can create for example a separate cluster-admin Service
-Account and use its token to access te API server of the **kind**
+Account and use its token to access the API server of the **kind**
 cluster:
 ```
 $ kubectl exec pod/kind-cluster -- kubectl create serviceaccount -n default admin
 $ kubectl exec pod/kind-cluster -- \
     kubectl patch clusterrolebinding cluster-admin --type=json \
     -p='[{"op":"add", "path":"/subjects/-", "value":{"kind":"ServiceAccount", "namespace":"default", "name":"admin" } }]'
-$ KIND_ID=$(kubectl get -n kube-system service/traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+$ KIND_IP=$(kubectl get -n kube-system service/traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 $ kubectl --kubeconfig=./kubeconfig config set-cluster kind \
     --server=https://$KIND_IP/kind-api --insecure-skip-tls-verify=true
 $ kubectl --kubeconfig=./kubeconfig config set-credentials kind-admin \
