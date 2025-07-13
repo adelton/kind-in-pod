@@ -9,7 +9,7 @@ networking:
 # Even with 0.0.0.0 uncommented, we still want to have 127.0.0.1 in the certificate
 kubeadmConfigPatchesJSON6902:
 - group: kubeadm.k8s.io
-  version: v1beta3
+  version: v1beta4
   kind: ClusterConfiguration
   patch: |
     - op: add
