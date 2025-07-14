@@ -12,11 +12,13 @@ jobs:
     runs-on: ubuntu-24.04${{ matrix.arch == 'arm64' && '-arm' || '' }}
     strategy:
       fail-fast: false
+      matrix:
+        arch: [ arm64 ]
+        kubernetes: [ k3s, rke2, 'kubeadm init' ]
+        runtime: [ cri-o, containerd ]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Setup upterm session
-        uses: lhotari/action-upterm@v1
       - name: Install and setup CRI-O
         run: |
           CRIO_VERSION=v1.32
@@ -89,7 +91,8 @@ jobs:
 
           sudo modprobe br_netfilter
           sudo sysctl -w net.ipv4.ip_forward=1
-          sudo sudo iptables -A FORWARD -o cni0 -j ACCEPT
+          sudo iptables -A FORWARD -o cni0 -j ACCEPT
+          sudo iptables -A FORWARD -i cni0 -j ACCEPT
 
           if [ -e /var/run/crio/crio.sock ] ; then
               CONFIG=k8s-initconfiguration-crio.yaml
@@ -155,3 +158,6 @@ jobs:
 
       - run: kubectl --kubeconfig=./kubeconfig get all -A
 
+      - name: Setup upterm session
+        uses: lhotari/action-upterm@v1
+        if: failure()
