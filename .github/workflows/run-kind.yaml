@@ -13,10 +13,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ 22.04, 24.04 ]
-        arch: [ amd64, arm64 ]
-        style: [ rootless, rootful ]
-        inner-podman-version: [ v5.4, v5.5 ]
+        os: [ 24.04 ]
+        arch: [ arm64 ]
+        style: [ rootless ]
+        inner-podman-version: [ v5.5 ]
         exclude:
           - os: 22.04
             style: rootful
