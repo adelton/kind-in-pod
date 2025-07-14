@@ -86,7 +86,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [ amd64, arm64 ]
+        arch: [ arm64 ]
         kubernetes: [ k3s, rke2, 'kubeadm init' ]
         runtime: [ cri-o, containerd ]
     timeout-minutes: 15
@@ -103,9 +103,19 @@ jobs:
           sudo apt update
           sudo apt install -y cri-o
 
+          sudo rm -f /etc/cni/net.d/*.conflist
           sudo cp /etc/cni/net.d/10-crio-bridge.conflist.disabled /etc/cni/net.d/10-crio-bridge.conflist
           sudo systemctl start crio.service
         if: matrix.runtime == 'cri-o'
+      - name: Setup the default containerd
+        run: |
+          sudo sed -i 's/disabled_plugins.*/### &/' /etc/containerd/config.toml
+          sudo tee -a /etc/containerd/config.toml < containerd-config.toml
+          sudo rm -f /etc/cni/net.d/*
+          sudo cp 10-bridge.conflist /etc/cni/net.d/
+          sudo systemctl restart containerd
+          diff -u <( sudo containerd config default ) <( sudo containerd config dump ) || :
+        if: matrix.kubernetes == 'kubeadm init' && matrix.runtime == 'containerd'
       - name: Install and setup K3s
         run: |
           export INSTALL_K3S_EXEC
@@ -120,6 +130,7 @@ jobs:
         if: matrix.kubernetes == 'k3s'
       - name: Install and setup RKE2
         run: |
+          sudo rm -f /etc/cni/net.d/*.conflist
           sudo mkdir -p /etc/rancher/rke2/config.yaml.d
           if [ -e /var/run/crio/crio.sock ] ; then
               echo 'container-runtime-endpoint: /var/run/crio/crio.sock' | sudo tee /etc/rancher/rke2/config.yaml.d/70-crio.yaml
@@ -157,18 +168,18 @@ jobs:
           if [ -e /var/run/crio/crio.sock ] ; then
               CONFIG=k8s-initconfiguration-crio.yaml
           else
-              sudo sed -i 's/disabled_plugins = \["cri"\]/### &/' /etc/containerd/config.toml
-              sudo systemctl restart containerd
               CONFIG=k8s-initconfiguration-containerd.yaml
           fi
           sudo kubeadm init --config $CONFIG
 
           mkdir ~/.kube
-          sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+          sudo cp -f /etc/kubernetes/admin.conf $HOME/.kube/config
           sudo chown $( id -u ):$( id -g ) ~/.kube/config
 
+          kubectl taint nodes $( hostname ) node-role.kubernetes.io/control-plane:NoSchedule-
           kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
         if: matrix.kubernetes == 'kubeadm init'
+
       - name: Build image
         run: docker build -t localhost/kind .
       - run: sudo skopeo copy docker-daemon:localhost/kind:latest containers-storage:localhost/kind
@@ -177,6 +188,8 @@ jobs:
         if: matrix.kubernetes == 'k3s' && matrix.runtime == 'containerd'
       - run: docker save localhost/kind | sudo /var/lib/rancher/rke2/bin/ctr --address /run/k3s/containerd/containerd.sock -n k8s.io images import -
         if: matrix.kubernetes == 'rke2' && matrix.runtime == 'containerd'
+      - run: docker save localhost/kind | sudo ctr -n k8s.io images import -
+        if: matrix.kubernetes == 'kubeadm init' && matrix.runtime == 'containerd'
       - run: sudo systemctl stop docker.service docker.socket
 
       - name: Wait for the cluster to become ready
@@ -216,3 +229,6 @@ jobs:
 
       - run: kubectl --kubeconfig=./kubeconfig get all -A
 
+      - name: Setup upterm session
+        uses: lhotari/action-upterm@v1
+        if: failure()
