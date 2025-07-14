@@ -133,6 +133,11 @@ jobs:
           sudo ln -s /var/lib/rancher/rke2/bin/kubectl /usr/local/bin
 
           kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
+
+          kubectl get pod -A
+          echo ---
+          while kubectl get pod -A --no-headers | grep -v -E 'Running|Completed' ; do echo --- ; sleep 3 ; done
+          kubectl get pod -A
         if: matrix.kubernetes == 'rke2'
       - name: Install and setup Kubernetes using kubeadm init
         run: |
