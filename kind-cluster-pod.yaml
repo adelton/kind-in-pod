@@ -23,6 +23,8 @@ spec:
     imagePullPolicy: IfNotPresent
     securityContext:
       privileged: true
+      appArmorProfile:
+        type: Unconfined
     command:
     - /usr/local/bin/kind-create-cluster
     env:
