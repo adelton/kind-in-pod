@@ -1,8 +1,9 @@
-version = 2
 
-[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
-  runtime_type = "io.containerd.runc.v2"
-  sandbox_mode = "podsandbox"
+version = 3
 
-  [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
-    SystemdCgroup = true
+[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.runc]
+  cgroup_writable = true
+
+[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.runc.options]
+  SystemdCgroup = true
+
