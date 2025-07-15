@@ -23,7 +23,6 @@ spec:
     imagePullPolicy: IfNotPresent
     securityContext:
       privileged: true
-      readOnlyRootFilesystem: true
     command:
     - /usr/local/bin/kind-create-cluster
     env:
@@ -48,7 +47,6 @@ spec:
     imagePullPolicy: IfNotPresent
     securityContext:
       privileged: true
-      readOnlyRootFilesystem: true
     command:
     - bash
     - -c
