@@ -15,4 +15,5 @@ if podman ps -a --noheading | grep -q . ; then
 fi
 
 set -x
-kind create cluster $OPTS "$@" && podman stop --all
+( set +e ; while true ; do podman ps -a ; podman network ls ; sleep 3 ; done ) &
+kind create cluster -v=10 $OPTS "$@" && podman stop --all
