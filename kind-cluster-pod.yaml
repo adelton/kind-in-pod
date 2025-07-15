@@ -17,6 +17,9 @@ metadata:
   labels:
     app: kind-cluster
 spec:
+  securityContext:
+    seccompProfile:
+      type: Unconfined
   initContainers:
   - name: create-cluster
     image: localhost/kind
