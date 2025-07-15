@@ -14,6 +14,9 @@ if podman ps -a --noheading | grep -q . ; then
 	exit
 fi
 
+set +e
 set -x
-( set +e ; while true ; do podman ps -a ; podman network ls ; sleep 3 ; done ) &
-kind create cluster -v=10 $OPTS "$@" && podman stop --all
+kind create cluster -v=10 $OPTS "$@" --retain
+kind export logs /tmp/kind-logs
+for i in /tmp/kind-logs/kind-control-plane/*.log ; do cat $i ; done
+podman stop --all
