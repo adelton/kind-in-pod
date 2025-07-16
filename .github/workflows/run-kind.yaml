@@ -138,8 +138,8 @@ jobs:
       - run: sudo systemctl stop docker.service docker.socket
 
       - name: Wait for the cluster to become ready
-        run: while ! kubectl get nodes ; do sleep 5 ; done ; kubectl get nodes -o jsonpath='{.items[*].metadata.name}' | xargs kubectl wait --for=condition=ready node
-      - run: kubectl get all -A
+        run: while ! kubectl get nodes | grep . ; do sleep 5 ; done ; kubectl wait node --all --for=condition=ready --timeout=240s
+      - run: kubectl get all -A ; kubectl rollout status deployment --namespace=kube-system --timeout=240s ; kubectl wait pod -A --all --for=condition=Ready --timeout=240s ; kubectl get all -A
       - run: while ! kubectl get serviceaccount/default ; do sleep 5 ; done
       - run: kubectl apply -f - < kind-cluster-pod.yaml
       - run: while ! kubectl get pod/kind-cluster -o jsonpath="{.status.initContainerStatuses[0].state['running','terminated'].startedAt}" | grep . ; do kubectl get pod/kind-cluster ; sleep 5 ; done
