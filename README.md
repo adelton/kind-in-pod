@@ -20,14 +20,14 @@ with podman installed in it, to which we install **kind**:
 
 ```
 $ podman run --rm -ti --privileged -h container quay.io/podman/stable
-[root@container /]# curl -Lso /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.29.0/kind-linux-amd64
+[root@container /]# curl -Lso /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.30.0/kind-linux-amd64
 [root@container /]# chmod +x /usr/local/bin/kind
 [root@container /]# kind create cluster --retain
 enabling experimental podman provider
 Creating cluster "kind" ...
- ✓ Ensuring node image (kindest/node:v1.33.1) 🖼 
+ ✓ Ensuring node image (kindest/node:v1.34.0) 🖼 
  ✗ Preparing nodes 📦  
-ERROR: failed to create cluster: command "podman run --name kind-control-plane --hostname kind-control-plane --label io.x-k8s.kind.role=control-plane --privileged --tmpfs /tmp --tmpfs /run --volume 2809683cde081bcd6ca6b9ddec29e071f416b03a41c52dcdf3b52262e1388a76:/var:suid,exec,dev --volume /lib/modules:/lib/modules:ro -e KIND_EXPERIMENTAL_CONTAINERD_SNAPSHOTTER --detach --tty --net kind --label io.x-k8s.kind.cluster=kind -e container=podman --cgroupns=private --publish=127.0.0.1:42583:6443/tcp -e KUBECONFIG=/etc/kubernetes/admin.conf docker.io/kindest/node@sha256:050072256b9a903bd914c0b2866828150cb229cea0efe5892e2b644d5dd3b34f" failed with error: exit status 125
+ERROR: failed to create cluster: command "podman run --name kind-control-plane --hostname kind-control-plane --label io.x-k8s.kind.role=control-plane --privileged --tmpfs /tmp --tmpfs /run --volume 4c125cf27452501f48532941024b14e8116056da962693d0acb1a4522ce37388:/var:suid,exec,dev --volume /lib/modules:/lib/modules:ro -e KIND_EXPERIMENTAL_CONTAINERD_SNAPSHOTTER --detach --tty --net kind --label io.x-k8s.kind.cluster=kind -e container=podman --cgroupns=private --publish=127.0.0.1:33841:6443/tcp -e KUBECONFIG=/etc/kubernetes/admin.conf docker.io/kindest/node@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a" failed with error: exit status 125
 Command Output: Error: invalid config provided: cannot set hostname when running in the host UTS namespace: invalid configuration
 ```
 
@@ -62,19 +62,19 @@ Deleted nodes: ["kind-control-plane"]
 [root@container /]# kind create cluster --retain
 enabling experimental podman provider
 Creating cluster "kind" ...
- ✓ Ensuring node image (kindest/node:v1.33.1) 🖼
+ ✓ Ensuring node image (kindest/node:v1.34.0) 🖼
  ✓ Preparing nodes 📦  
  ✓ Writing configuration 📜 
  ✗ Starting control-plane 🕹️ 
 ERROR: failed to create cluster: failed to init node with kubeadm: command "podman exec --privileged kind-control-plane kubeadm init --config=/kind/kubeadm.conf --skip-token-print --v=6" failed with error: exit status 1
-Command Output: I0522 07:40:50.280575     168 initconfiguration.go:261] loading configuration from "/kind/kubeadm.conf"
-W0522 07:40:50.281023     168 common.go:101] your configuration file uses a deprecated API spec: "kubeadm.k8s.io/v1beta3" (kind: "ClusterConfiguration"). Please use 'kubeadm config migrate --old-config old-config-file --new-config new-config-file', which will write the new, similar spec using a newer API version.
+Command Output: I0828 06:58:25.893049     172 initconfiguration.go:260] loading configuration from "/kind/kubeadm.conf"
+W0828 06:58:25.893501     172 common.go:100] your configuration file uses a deprecated API spec: "kubeadm.k8s.io/v1beta3" (kind: "ClusterConfiguration"). Please use 'kubeadm config migrate --old-config old-config-file --new-config new-config-file', which will write the new, similar spec using a newer API version.
 [...]
 [wait-control-plane] Waiting for the kubelet to boot up the control plane as static Pods from directory "/etc/kubernetes/manifests"
 [kubelet-check] Waiting for a healthy kubelet at http://127.0.0.1:10248/healthz. This can take up to 4m0s
-[kubelet-check] The kubelet is not healthy after 4m0.000619259s
+[kubelet-check] The kubelet is not healthy after 4m0.000655501s
 [...]
-The HTTP call equal to 'curl -sSL http://127.0.0.1:10248/healthz' returned error: Get "http://127.0.0.1:10248/healthz": context deadline exceeded
+error: error execution phase wait-control-plane: failed while waiting for the kubelet to start: The HTTP call equal to 'curl -sSL http://127.0.0.1:10248/healthz' returned error: Get "http://127.0.0.1:10248/healthz": context deadline exceeded
 [...]
 ```
 
@@ -85,7 +85,7 @@ messages but we can continue the debugging with
 ```
 where
 ```
-May 22 07:40:54 kind-control-plane kubelet[208]: E0522 07:40:54.254703     208 kubelet.go:570] "Failed to create an oomWatcher (running in UserNS, Hint: enable KubeletInUserNamespace feature flag to ignore the error)" err="open /dev/kmsg: operation not permitted"
+Aug 28 06:58:29 kind-control-plane kubelet[213]: E0828 06:58:29.436578     213 kubelet.go:565] "Failed to create an oomWatcher (running in UserNS, Hint: enable KubeletInUserNamespace feature flag to ignore the error)" err="open /dev/kmsg: operation not permitted"
 ```
 seems the most relevant.
 
@@ -105,10 +105,9 @@ nodes:
 we can actually get the initial step pass:
 ```
 [root@container /]# kind create cluster --retain --config kind-cluster.yaml
-
 enabling experimental podman provider
 Creating cluster "kind" ...
- ✓ Ensuring node image (kindest/node:v1.33.1) 🖼
+ ✓ Ensuring node image (kindest/node:v1.34.0) 🖼
  ✓ Preparing nodes 📦  
  ✓ Writing configuration 📜 
  ✓ Starting control-plane 🕹️ 
@@ -119,7 +118,7 @@ You can now use your cluster with:
 
 kubectl cluster-info --context kind-kind
 
-Not sure what to do next? 😅  Check out https://kind.sigs.k8s.io/docs/user/quick-start/
+Thanks for using kind! 😊
 ```
 
 We can then use
@@ -134,7 +133,7 @@ default.
 Based on the above investigation, we can use a `Dockerfile`
 ```
 FROM quay.io/podman/stable
-RUN curl -Lso /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.29.0/kind-linux-amd64
+RUN curl -Lso /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.30.0/kind-linux-amd64
 RUN chmod +x /usr/local/bin/kind
 RUN sed -i 's/utsns=.*/utsns="private"/; s/cgroups=.*/cgroups="enabled"/' /etc/containers/containers.conf
 COPY kind-cluster-rootless.yaml /etc/kind-cluster-rootless.yaml
