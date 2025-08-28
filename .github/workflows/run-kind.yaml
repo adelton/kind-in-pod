@@ -9,27 +9,21 @@ on:
 jobs:
   kind-in-podman:
     name: Kind
-    runs-on: ubuntu-${{ matrix.os }}${{ matrix.arch == 'arm64' && '-arm' || '' }}
+    runs-on: ubuntu-24.04${{ matrix.arch == 'arm64' && '-arm' || '' }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ 22.04, 24.04 ]
         arch: [ amd64, arm64 ]
         style: [ rootless, rootful ]
         inner-podman-version: [ v5.4, v5.5 ]
         exclude:
-          - os: 22.04
+          - arch: amd64
             style: rootful
-          - os: 22.04
-            inner-podman-version: v5.4
     timeout-minutes: 15
     env:
       kind_create_opts: --config /etc/kind-cluster.yaml
     steps:
       - uses: actions/checkout@v4
-      - name: Install podman 4.*
-        uses: ./.github/actions/install-podman-4
-        if: matrix.os == '22.04'
       - name: Set podman env
         run: echo "podman=podman" >> $GITHUB_ENV
       - name: Set sudo podman env
