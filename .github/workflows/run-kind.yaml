@@ -85,6 +85,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - run: date '+%F %T' > job-start
       - name: Install and setup CRI-O
         run: |
           CRIO_VERSION=v1.32
@@ -154,4 +155,14 @@ jobs:
       - run: kubectl exec pod/kind-cluster -- kubectl get all -A
 
       - run: kubectl --kubeconfig=./kubeconfig get all -A
+
+      - run: sudo journalctl -u k3s -S "$( cat job-start )" -l > k3s.log
+        if: failure()
+      - run: kubectl describe nodes
+        if: failure()
+      - uses: actions/upload-artifact@v4
+        with:
+          name: k3s-log-${{ matrix.runtime }}-${{matrix.arch}}
+          path: k3s.log
+        if: failure()
 
