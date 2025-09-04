@@ -15,7 +15,7 @@ jobs:
       matrix:
         arch: [ amd64, arm64 ]
         style: [ rootless, rootful ]
-        inner-podman-version: [ v5.4, v5.5 ]
+        inner-podman-version: [ v5.5, v5.6 ]
         exclude:
           - arch: amd64
             style: rootful
