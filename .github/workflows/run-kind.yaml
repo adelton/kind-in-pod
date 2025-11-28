@@ -105,12 +105,10 @@ jobs:
           export INSTALL_K3S_EXEC
           if [ -e /var/run/crio/crio.sock ] ; then
               INSTALL_K3S_EXEC='--container-runtime-endpoint /var/run/crio/crio.sock'
-          fi
-          curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig ~/.kube/config --write-kubeconfig-group $( id -g ) --write-kubeconfig-mode 640 --disable=traefik --disable=metrics-server
-          if [ -e /var/run/crio/crio.sock ] ; then
               ( echo '[crio.network]' ; echo 'plugin_dirs = [ "/var/lib/rancher/k3s/data/cni" ]' ) | sudo tee /etc/crio/crio.conf.d/20-cni.conf
               sudo systemctl restart crio.service
           fi
+          curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig ~/.kube/config --write-kubeconfig-group $( id -g ) --write-kubeconfig-mode 640 --disable=traefik --disable=metrics-server
       - name: Build image
         run: docker build -t localhost/kind .
       - run: sudo skopeo copy docker-daemon:localhost/kind:latest containers-storage:localhost/kind
