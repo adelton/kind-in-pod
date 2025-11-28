@@ -37,6 +37,7 @@ on:
           - k3s
           - rke2
           - k0s
+          - kubeadm init
       runtime:
         description: Kubernetes runtime
         type: choice
@@ -50,7 +51,7 @@ on:
       exclude:
         description: Exclude from job matrix (JSON)
         type: string
-        default: '[{"arch":"x86_64","podman-style":"rootful"},{"kubernetes":"k0s","runtime":"default"}]'
+        default: '[{"arch":"x86_64","podman-style":"rootful"},{"kubernetes":"k0s","runtime":"default"},{"kubernetes":"kubeadm init","runtime":"default"}]'
 
 jobs:
   init:
@@ -233,6 +234,10 @@ jobs:
         if: matrix.runtime == 'containerd'
       - uses: ./.github/actions/install-containerd-2.2
         if: matrix.runtime == 'containerd-2.2'
+      - uses: ./.github/actions/install-k8s
+        env:
+          KUBERNETES_VERSION: v1.34
+        if: matrix.kubernetes == 'kubeadm init'
       - uses: ./.github/actions/install-k3s
         if: matrix.kubernetes == 'k3s'
       - uses: ./.github/actions/install-rke2

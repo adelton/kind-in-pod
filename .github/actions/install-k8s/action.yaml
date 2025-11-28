@@ -1,0 +1,46 @@
+name: Install and start Kubernetes via kubeadm init
+runs:
+  using: composite
+  steps:
+    - run: |
+        [ -n "$KUBERNETES_VERSION" ] || exit 1
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/$KUBERNETES_VERSION/deb/Release.key \
+            | gpg --dearmor | sudo tee /etc/apt/keyrings/kubernetes-apt-keyring.gpg > /dev/null
+        echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/$KUBERNETES_VERSION/deb/ /" \
+            | sudo tee /etc/apt/sources.list.d/kubernetes.list
+        if [ -e /etc/apt/sources.list.d/microsoft-prod.list ] ; then sudo mv -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/microsoft-prod.list.disabled ; fi
+
+        sudo apt update
+        sudo apt install -y kubelet kubeadm kubectl kubernetes-cni
+
+        sudo modprobe br_netfilter
+        sudo sysctl -w net.ipv4.ip_forward=1
+        sudo iptables -A FORWARD -o cni0 -j ACCEPT
+
+        CONFIG=.github/actions/install-k8s/k8s-allow-swap.yaml
+        if [ -e /var/run/crio/crio.sock ] ; then
+            CONFIG="$CONFIG .github/actions/install-k8s/k8s-initconfiguration-crio.yaml"
+        elif [ -e /var/run/containerd/containerd.sock ] ; then
+            CONFIG="$CONFIG .github/actions/install-k8s/k8s-initconfiguration-containerd.yaml"
+        fi
+
+        if ! cat $CONFIG | sudo kubeadm init --config /dev/stdin ; then
+            set +e
+            sudo systemctl status kubelet
+            sudo journalctl -xeu kubelet
+            exit 1
+        fi
+
+        mkdir ~/.kube
+        sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+        sudo chown $( id -u ):$( id -g ) ~/.kube/config
+        ( set +x ; while true ; do if kubectl get nodes | tee /dev/stderr | grep -q '\bReady\b' ; then break ; else sleep 5 ; fi ; done )
+        ( set +x ; while ! kubectl get serviceaccount/default ; do sleep 5 ; done )
+        kubectl get pods --all-namespaces
+        ( set +x ; while kubectl get pods -A 2>&1 | grep -E 'Pending|ContainerCreating|Init|No resources found' ; do echo --- ; sleep 5 ; done )
+        kubectl get all -A
+
+        kubectl taint nodes $( hostname ) node-role.kubernetes.io/control-plane:NoSchedule-
+        kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
+        kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+      shell: bash -euxo pipefail {0}
