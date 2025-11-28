@@ -35,6 +35,7 @@ on:
           - all
           - none
           - k3s
+          - rke2
           - k0s
       runtime:
         description: Kubernetes runtime
@@ -234,6 +235,8 @@ jobs:
         if: matrix.runtime == 'containerd-2.2'
       - uses: ./.github/actions/install-k3s
         if: matrix.kubernetes == 'k3s'
+      - uses: ./.github/actions/install-rke2
+        if: matrix.kubernetes == 'rke2'
       - uses: ./.github/actions/install-k0s
         if: matrix.kubernetes == 'k0s'
 
@@ -241,7 +244,7 @@ jobs:
         if: matrix.runtime == 'cri-o'
       - run: gunzip < kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}.tar.gz | sudo ctr -n k8s.io images import -
         if: matrix.runtime == 'containerd' || matrix.runtime == 'containerd-2.2'
-      - run: sudo k3s ctr images import - < kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}.tar.gz
+      - run: gunzip < kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}.tar.gz | sudo ctr -a /run/k3s/containerd/containerd.sock -n k8s.io images import -
         if: matrix.runtime == 'default'
       - name: Wait for the cluster to become ready
         run: while ! kubectl get nodes ; do sleep 5 ; done ; kubectl get nodes -o jsonpath='{.items[*].metadata.name}' | xargs kubectl wait --for=condition=ready node
