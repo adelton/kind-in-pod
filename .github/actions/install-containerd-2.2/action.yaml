@@ -3,11 +3,15 @@ runs:
   using: composite
   steps:
     - run: |
+        sudo systemctl stop containerd || :
+
         curl -LO https://github.com/containerd/containerd/releases/download/v2.2.0/containerd-2.2.0-linux-$( dpkg --print-architecture ).tar.gz
         sudo tar x -C /usr/local -vzf containerd-*.tar.gz
 
         sudo mkdir -p /etc/containerd
-        sudo cp .github/actions/containerd-config-k3s.toml /etc/containerd/config.toml
+        # remove the default config which has disabled_plugins = ["cri"]
+        sudo rm -f /etc/containerd/config.toml
+        sudo cp .github/actions/containerd-config-k3s.toml /etc/containerd/
 
         curl -LO https://github.com/containerd/containerd/raw/refs/heads/main/containerd.service
         sudo mv containerd.service /etc/systemd/system/
