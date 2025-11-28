@@ -81,7 +81,7 @@ jobs:
       fail-fast: false
       matrix:
         arch: [ amd64, arm64 ]
-        runtime: [ cri-o, default ]
+        runtime: [ cri-o, containerd, default ]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -100,6 +100,26 @@ jobs:
           sudo cp /etc/cni/net.d/10-crio-bridge.conflist.disabled /etc/cni/net.d/10-crio-bridge.conflist
           sudo systemctl start crio.service
         if: matrix.runtime == 'cri-o'
+      - name: Stop the default containerd
+        run: |
+          sudo systemctl stop containerd || :
+        if: matrix.runtime == 'containerd' || matrix.runtime == 'default'
+      - name: Install and setup containerd 2.2
+        run: |
+          curl -LO https://github.com/containerd/containerd/releases/download/v2.2.0/containerd-2.2.0-linux-$( dpkg --print-architecture ).tar.gz
+          sudo tar x -C /usr/local -vzf containerd-*.tar.gz
+
+          sudo mkdir -p /etc/containerd
+          sudo cp containerd-config-k3s.toml /etc/containerd/config.toml
+
+          curl -LO https://github.com/containerd/containerd/raw/refs/heads/main/containerd.service
+          sudo mv containerd.service /etc/systemd/system/
+          sudo systemctl daemon-reload
+
+          sudo systemctl start containerd
+          sudo ctr version
+          diff -u <( sudo containerd config default ) <( sudo containerd config dump ) || true
+        if: matrix.runtime == 'containerd'
       - name: Install and setup K3s
         run: |
           export INSTALL_K3S_EXEC
@@ -107,12 +127,16 @@ jobs:
               INSTALL_K3S_EXEC='--container-runtime-endpoint /var/run/crio/crio.sock'
               ( echo '[crio.network]' ; echo 'plugin_dirs = [ "/var/lib/rancher/k3s/data/cni" ]' ) | sudo tee /etc/crio/crio.conf.d/20-cni.conf
               sudo systemctl restart crio.service
+          elif [ -e /run/containerd/containerd.sock ] ; then
+              INSTALL_K3S_EXEC='--container-runtime-endpoint /run/containerd/containerd.sock'
           fi
           curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig ~/.kube/config --write-kubeconfig-group $( id -g ) --write-kubeconfig-mode 640 --disable=traefik --disable=metrics-server
       - name: Build image
         run: docker build -t localhost/kind .
       - run: sudo skopeo copy docker-daemon:localhost/kind:latest containers-storage:localhost/kind
         if: matrix.runtime == 'cri-o'
+      - run: docker save localhost/kind | sudo ctr -n k8s.io images import -
+        if: matrix.runtime == 'containerd'
       - run: docker save localhost/kind | sudo k3s ctr images import -
         if: matrix.runtime == 'default'
       - run: sudo systemctl stop docker.service docker.socket
