@@ -1,0 +1,24 @@
+name: Install and setup containerd 2.2
+runs:
+  using: composite
+  steps:
+    - run: |
+        sudo systemctl stop containerd || true
+
+        sudo rm -f /etc/cni/net.d/*.conflist
+        sudo cp .github/actions/cni-10-bridge.conflist /etc/cni/net.d/10-bridge.conflist
+
+        curl -LO https://github.com/containerd/containerd/releases/download/v2.2.0/containerd-2.2.0-linux-$( dpkg --print-architecture ).tar.gz
+        sudo tar x -C /usr/local -vzf containerd-*.tar.gz
+
+        sudo mkdir -p /etc/containerd
+        sudo cp .github/actions/containerd-config-k3s.toml /etc/containerd/config.toml
+        diff -u <( sudo containerd config default ) <( sudo containerd config dump ) || true
+
+        curl -LO https://github.com/containerd/containerd/raw/refs/heads/main/containerd.service
+        sudo mv containerd.service /etc/systemd/system/
+        sudo systemctl daemon-reload
+
+        sudo systemctl start containerd
+        sudo ctr version
+      shell: bash -euxo pipefail {0}
