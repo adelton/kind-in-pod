@@ -221,18 +221,19 @@ By using a [Cluster config](kind-cluster.yaml) with `apiServerPort`
 specified, we can have the value consistent, easier to then publish
 it outside of the podman in the future.
 
-## Running in a K3s setup
+## Running in a Kubernetes setup
 
 With the basic **kind** operation verified with plain podman, we can
-replicate the same setup in a K3s pod. The
-[kind-cluster-pod-k3s.yaml](kind-cluster-pod-k3s.yaml) shows an
+replicate the same setup in a Kubernetes pod. The
+[kind-cluster-pod.yaml](kind-cluster-pod.yaml) shows an
 example Pod. The `image` is defined as `localhost/kind` there so it
-needs to be built and then `k3s ctr images import`ed for K3s to be
-able to use the image.
+needs to be built and then imported to the runtime for Kubernetes
+able to use the image, for example for K3s that would be with
+`k3s ctr images import`.
 
 Then it should be a matter of
 ```console
-$ kubectl apply -f - < kind-cluster-pod-k3s.yaml
+$ kubectl apply -f - < kind-cluster-pod.yaml
 ```
 and checking the progress with
 ```console
@@ -244,7 +245,7 @@ Eventually,
 ```console
 $ kubectl exec pod/kind-cluster -- kubectl get all -A
 ```
-will show a **kind** Kubernetes cluster withing a K3s Kubernetes
+will show a **kind** Kubernetes cluster within a Kubernetes
 cluster.
 
 As with podman where we used `--read-only`, in Kubernetes we want to

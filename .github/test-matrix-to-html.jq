@@ -25,7 +25,7 @@ flatten
 	if ($r | has("podman-style")) then
 		.["podman"][ $r["podman-style"] ][ $r["inner-podman-version"] ][ $r.arch ] = "🔷"
 	else
-		.["k3s"][ $r["runtime"] ][ $r["inner-podman-version"] ][ $r.arch ] = "🔷"
+		.[ $r.kubernetes ][ $r.runtime ][ $r["inner-podman-version"] ][ $r.arch ] = "🔷"
 	end)
 | . as $data
 |

@@ -28,8 +28,16 @@ on:
           - none
           - rootless
           - rootful
+      kubernetes:
+        description: Kubernetes
+        type: choice
+        options:
+          - all
+          - none
+          - k3s
+          - k0s
       runtime:
-        description: K3s runtime
+        description: Kubernetes runtime
         type: choice
         options:
           - all
@@ -41,7 +49,7 @@ on:
       exclude:
         description: Exclude from job matrix (JSON)
         type: string
-        default: '[{"arch":"x86_64","podman-style":"rootful"}]'
+        default: '[{"arch":"x86_64","podman-style":"rootful"},{"kubernetes":"k0s","runtime":"default"}]'
 
 jobs:
   init:
@@ -52,7 +60,7 @@ jobs:
       arch: ${{ steps.process-inputs.outputs.arch }}
       inner-podman-version: ${{ steps.process-inputs.outputs.inner-podman-version }}
       run-in-podman: ${{ steps.randomize-plan.outputs.run-in-podman }}
-      run-in-k3s: ${{ steps.randomize-plan.outputs.run-in-k3s }}
+      run-in-k8s: ${{ steps.randomize-plan.outputs.run-in-k8s }}
     steps:
       - uses: actions/checkout@v4
       - id: process-inputs
@@ -74,6 +82,13 @@ jobs:
           else
             echo '["${{ inputs.podman-style }}"]'
           fi | sed 's/^/podman-style=/' | tee -a $GITHUB_OUTPUT
+          if [ -z "${{ inputs.kubernetes }}" -o "${{ inputs.kubernetes }}" = "all" ] ; then
+            yq -I0 '.on.workflow_dispatch.inputs.kubernetes.options.[2:]' .github/workflows/run-kind.yaml -o json
+          elif [ "${{ inputs.kubernetes }}" = "none" ] ; then
+            echo '[]'
+          else
+            echo '["${{ inputs.kubernetes }}"]'
+          fi | sed 's/^/kubernetes=/' | tee -a $GITHUB_OUTPUT
           if [ -z "${{ inputs.runtime }}" -o "${{ inputs.runtime }}" = "all" ] ; then
             yq -I0 '.on.workflow_dispatch.inputs.runtime.options.[2:]' .github/workflows/run-kind.yaml -o json
           elif [ "${{ inputs.runtime }}" = "none" ] ; then
@@ -86,6 +101,7 @@ jobs:
           echo '{"arch":${{ steps.process-inputs.outputs.arch }},' \
             '"inner-podman-version":${{ steps.process-inputs.outputs.inner-podman-version }},' \
             '"podman-style":${{ steps.process-inputs.outputs.podman-style }},' \
+            '"kubernetes":${{ steps.process-inputs.outputs.kubernetes }},' \
             '"runtime":${{ steps.process-inputs.outputs.runtime }}}' > .github/params.json
 
           exclude="$( yq -I0 '.on.workflow_dispatch.inputs.exclude.default' .github/workflows/run-kind.yaml -o json | jq -c 'fromjson' )"
@@ -95,10 +111,10 @@ jobs:
           jq -c -f .github/generate-randomized-matrix.jq .github/params.json --arg count 4 --argjson exclude "${exclude:-[]}" --args arch podman-style inner-podman-version \
             | tee .github/matrix-run-in-podman.json \
             | sed 's/^/run-in-podman=/' | tee -a $GITHUB_OUTPUT
-          jq -c -f .github/generate-randomized-matrix.jq .github/params.json --arg count 7 --argjson exclude "${exclude:-[]}" --args arch runtime inner-podman-version \
-            | tee .github/matrix-run-in-k3s.json \
-            | sed 's/^/run-in-k3s=/' | tee -a $GITHUB_OUTPUT
-          cat .github/matrix-run-in-podman.json .github/matrix-run-in-k3s.json | jq -sr -f .github/test-matrix-to-html.jq >> $GITHUB_STEP_SUMMARY
+          jq -c -f .github/generate-randomized-matrix.jq .github/params.json --arg count 10 --argjson exclude "${exclude:-[]}" --args kubernetes runtime inner-podman-version arch \
+            | tee .github/matrix-run-in-k8s.json \
+            | sed 's/^/run-in-k8s=/' | tee -a $GITHUB_OUTPUT
+          cat .github/matrix-run-in-podman.json .github/matrix-run-in-k8s.json | jq -sr -f .github/test-matrix-to-html.jq >> $GITHUB_STEP_SUMMARY
 
   build:
     name: Build image
@@ -187,15 +203,15 @@ jobs:
       - run: $podman exec -ti kind podman wait --condition=running kind-control-plane ; sleep 10
       - run: $podman exec kind kubectl get all -A
 
-  kind-in-k3s:
-    name: Kind in K3s
+  kind-in-k8s:
+    name: Kind in K8s
     runs-on: ubuntu-24.04${{ matrix.arch == 'arm64' && '-arm' || '' }}
     needs: [ init, build ]
-    if: needs.init.outputs.run-in-k3s != '[]'
+    if: needs.init.outputs.run-in-k8s != '[]'
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(needs.init.outputs.run-in-k3s ) }}
+        include: ${{ fromJSON(needs.init.outputs.run-in-k8s ) }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -217,19 +233,22 @@ jobs:
       - uses: ./.github/actions/install-containerd-2.2
         if: matrix.runtime == 'containerd-2.2'
       - uses: ./.github/actions/install-k3s
+        if: matrix.kubernetes == 'k3s'
+      - uses: ./.github/actions/install-k0s
+        if: matrix.kubernetes == 'k0s'
+
       - run: sudo skopeo copy docker-archive:kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}.tar.gz containers-storage:localhost/kind
         if: matrix.runtime == 'cri-o'
       - run: gunzip < kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}.tar.gz | sudo ctr -n k8s.io images import -
         if: matrix.runtime == 'containerd' || matrix.runtime == 'containerd-2.2'
       - run: sudo k3s ctr images import - < kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}.tar.gz
         if: matrix.runtime == 'default'
-
       - name: Wait for the cluster to become ready
         run: while ! kubectl get nodes ; do sleep 5 ; done ; kubectl get nodes -o jsonpath='{.items[*].metadata.name}' | xargs kubectl wait --for=condition=ready node
       - run: kubectl get all -A
       - run: ip a ; ip r
       - run: while ! kubectl get serviceaccount/default ; do sleep 5 ; done
-      - run: kubectl apply -f - < kind-cluster-pod-k3s.yaml
+      - run: kubectl apply -f - < kind-cluster-pod.yaml
       - run: while ! kubectl get pod/kind-cluster -o jsonpath="{.status.initContainerStatuses[0].state['running','terminated'].startedAt}" | grep . ; do kubectl get pod/kind-cluster ; sleep 5 ; done
       - run: kubectl logs -f pod/kind-cluster -c create-cluster
       - run: kubectl describe pod/kind-cluster
@@ -254,7 +273,7 @@ jobs:
       - run: kubectl --kubeconfig=./kubeconfig get all -A
 
       - run: kubectl delete pod/kind-cluster
-      - run: kubectl apply -f - < kind-cluster-pod-k3s.yaml
+      - run: kubectl apply -f - < kind-cluster-pod.yaml
       - run: while ! kubectl get pod/kind-cluster -o jsonpath="{.status.containerStatuses[0].state['running','terminated'].startedAt}" | grep . ; do kubectl get pod/kind-cluster ; sleep 5 ; done
       - run: kubectl logs pod/kind-cluster -c create-cluster
       - run: kubectl logs pod/kind-cluster
@@ -264,12 +283,12 @@ jobs:
       - run: kubectl --kubeconfig=./kubeconfig get all -A
 
       - run: sudo journalctl -u k3s -S "$( cat job-start )" -l > k3s.log
-        if: failure()
+        if: failure() && matrix.kubernetes == 'k3s'
       - run: kubectl describe nodes
         if: failure()
       - uses: actions/upload-artifact@v4
         with:
           name: k3s-log-${{ matrix.runtime }}-${{matrix.arch}}
           path: k3s.log
-        if: failure()
+        if: failure() && matrix.kubernetes == 'k3s'
 

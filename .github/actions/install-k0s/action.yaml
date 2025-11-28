@@ -1,0 +1,31 @@
+name: Install and start K0s
+runs:
+  using: composite
+  steps:
+    - run: |
+        curl -sSLf https://get.k0s.sh | sudo sh
+
+        if [ -e /var/run/crio/crio.sock ] ; then
+            CRI_SOCKET='--cri-socket remote:unix:///var/run/crio/crio.sock'
+        elif [ -e /var/run/containerd/containerd.sock ] ; then
+            CRI_SOCKET='--cri-socket remote:unix:///var/run/containerd/containerd.sock'
+        fi
+        sudo k0s install controller --single $CRI_SOCKET --disable-components=metrics-server
+        sudo k0s start
+        ( set +x ; while ! sudo k0s status ; do echo --- ; sleep 5 ; done )
+
+        ( echo '#!/bin/bash' ; echo 'KUBECONFIG=~/.kube/config exec k0s kubectl "$@"' ) | sudo tee /usr/local/bin/kubectl
+        sudo chmod a+x /usr/local/bin/kubectl
+
+        mkdir ~/.kube
+        sudo cat /var/lib/k0s/pki/admin.conf > ~/.kube/config
+
+        ( set +x ; while true ; do if kubectl get nodes | tee /dev/stderr | grep -q '\bReady\b' ; then break ; else sleep 5 ; fi ; done )
+        ( set +x ; while ! kubectl get serviceaccount/default ; do sleep 5 ; done )
+        kubectl get pods --all-namespaces
+        ( set +x ; while kubectl get pods -A 2>&1 | grep -E 'Pending|ContainerCreating|Init|No resources found' ; do echo --- ; sleep 5 ; done )
+        kubectl get all -A
+
+        kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
+        kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+      shell: bash -euxo pipefail {0}
