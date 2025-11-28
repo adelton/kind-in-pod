@@ -7,130 +7,39 @@ on:
   workflow_dispatch:
 
 jobs:
-  kind-in-podman:
-    name: Kind
-    runs-on: ubuntu-24.04${{ matrix.arch == 'arm64' && '-arm' || '' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: [ amd64, arm64 ]
-        style: [ rootless, rootful ]
-        inner-podman-version: [ v5.6, v5.7 ]
-        exclude:
-          - arch: amd64
-            style: rootful
-    timeout-minutes: 15
-    env:
-      kind_create_opts: --config /etc/kind-cluster.yaml
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set podman env
-        run: echo "podman=podman" >> $GITHUB_ENV
-      - name: Set sudo podman env
-        run: echo "podman=sudo podman" >> $GITHUB_ENV
-        if: matrix.style == 'rootful'
-      - name: Enable cpu cgroup delegation
-        run: |
-          for i in /sys/fs/cgroup/user.slice/cgroup.subtree_control \
-            /sys/fs/cgroup/user.slice/user-$(id -u).slice/cgroup.subtree_control \
-            /sys/fs/cgroup/user.slice/user-$(id -u).slice/user@$(id -u).service/cgroup.subtree_control ; do \
-            echo '+cpu' | sudo tee -a $i ; \
-          done
-        if: matrix.style == 'rootless'
-      - name: Use podman ${{ matrix.inner-podman-version }} in the container
-        run: sed -i 's%^FROM quay\.io/podman/stable.*%FROM quay.io/podman/stable:${{ matrix.inner-podman-version }}%' Dockerfile
-      - name: Build image
-        run: $podman build -t localhost/kind .
-      - name: Create a volume
-        run: $podman volume create kind-data
-      - name: Network definition for rootless
-        run: echo "podman_run_opts=-v $(pwd)/kind-network.yaml:/var/lib/containers/storage/networks/kind.json" >> $GITHUB_ENV
-        if: matrix.style == 'rootless'
-      - name: Network definition for rootful
-        run: echo "podman_run_opts=-v $(pwd)/kind-network.yaml:/etc/containers/networks/kind.json" >> $GITHUB_ENV
-        if: matrix.style == 'rootful'
-      - name: Run the podman container
-        run: $podman run -d --privileged --read-only --name kind -v kind-data:/var/lib/containers $podman_run_opts -p 6443:6443 localhost/kind
-      - name: Cluster configuration for rootless
-        run: echo "kind_create_opts=--config /etc/kind-cluster-rootless.yaml" >> $GITHUB_ENV
-        if: matrix.style == 'rootless'
-      - name: Create kind cluster
-        run: $podman exec kind kind create cluster --retain $kind_create_opts
-      - run: $podman exec kind podman logs kind-control-plane
-        if: ${{ failure() }}
-      - run: $podman exec kind kubectl cluster-info --context kind-kind
-      - run: $podman exec -ti kind kubectl wait --for=condition=ready -n kube-system pod/etcd-kind-control-plane pod/kube-apiserver-kind-control-plane --timeout=60s
-      - run: $podman exec kind kubectl get nodes -o jsonpath='{.items[*].metadata.name}' | xargs $podman exec kind kubectl wait --for=condition=ready node
-      - run: $podman exec kind kubectl get nodes
-      - run: $podman exec kind kubectl get all -A
-      - run: |
-          $podman exec kind curl -sk https://127.0.0.1:6443/ | tee /dev/stderr | grep -q 'forbidden: User \\"system:anonymous\\" cannot get path'
-      - run: |
-          curl -s --cacert <( $podman exec kind bash -c 'cat $KUBECONFIG' | awk '/certificate-authority-data:/ { print $2 }' | base64 -d ) https://127.0.0.1:6443/ | tee /dev/stderr | grep -q 'forbidden: User \\"system:anonymous\\" cannot get path'
-      - run: curl -s --cacert <( $podman exec kind bash -c 'cat $KUBECONFIG' | awk '/certificate-authority-data:/ { print $2 }' | base64 -d ) -E <( $podman exec kind bash -c 'cat $KUBECONFIG' | awk '/client-certificate-data:/ { print $2 }' | base64 -d ) --key <( $podman exec kind bash -c 'cat $KUBECONFIG' | awk '/client-key-data:/ { print $2 }' | base64 -d ) https://127.0.0.1:6443/ | tee /dev/stderr | grep -Fq /apis/authentication.k8s.io/v1
-      - run: $podman rm -f kind
-      - run: $podman run -d --privileged --read-only --name kind -v kind-data:/var/lib/containers $podman_run_opts -p 6443:6443 localhost/kind
-      - run: $podman exec -ti kind podman start --all
-      - run: $podman exec -ti kind podman wait --condition=running kind-control-plane ; sleep 10
-      - run: $podman exec kind kubectl get all -A
-
   kind-in-k3s:
     name: Kind in K3s
     runs-on: ubuntu-24.04${{ matrix.arch == 'arm64' && '-arm' || '' }}
     strategy:
       fail-fast: false
       matrix:
-        arch: [ amd64, arm64 ]
+        arch: [ arm64 ]
+        kubernetes: [ k3s, "kubeadm init", rke2, k0s ]
         runtime: [ cri-o, containerd, default ]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - run: date '+%F %T' > job-start
-      - name: Install and setup CRI-O
-        run: |
-          CRIO_VERSION=v1.32
-          curl -fsSL https://pkgs.k8s.io/addons:/cri-o:/stable:/$CRIO_VERSION/deb/Release.key \
-              | gpg --dearmor | sudo tee /etc/apt/keyrings/cri-o-apt-keyring.gpg > /dev/null
-          echo "deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.gpg] https://pkgs.k8s.io/addons:/cri-o:/stable:/$CRIO_VERSION/deb/ /" \
-              | sudo tee /etc/apt/sources.list.d/cri-o.list
-
-          sudo apt update
-          sudo apt install -y cri-o
-
-          sudo cp /etc/cni/net.d/10-crio-bridge.conflist.disabled /etc/cni/net.d/10-crio-bridge.conflist
-          sudo systemctl start crio.service
-        if: matrix.runtime == 'cri-o'
       - name: Stop the default containerd
         run: |
-          sudo systemctl stop containerd || :
-        if: matrix.runtime == 'containerd' || matrix.runtime == 'default'
-      - name: Install and setup containerd 2.2
-        run: |
-          curl -LO https://github.com/containerd/containerd/releases/download/v2.2.0/containerd-2.2.0-linux-$( dpkg --print-architecture ).tar.gz
-          sudo tar x -C /usr/local -vzf containerd-*.tar.gz
-
-          sudo mkdir -p /etc/containerd
-          sudo cp containerd-config-k3s.toml /etc/containerd/config.toml
-
-          curl -LO https://github.com/containerd/containerd/raw/refs/heads/main/containerd.service
-          sudo mv containerd.service /etc/systemd/system/
-          sudo systemctl daemon-reload
-
-          sudo systemctl start containerd
-          sudo ctr version
-          diff -u <( sudo containerd config default ) <( sudo containerd config dump ) || true
+          sudo systemctl stop containerd
+      - uses: ./.github/actions/install-crio
+        env:
+          CRIO_VERSION: v1.34
+        if: matrix.runtime == 'cri-o'
+      - uses: ./.github/actions/install-containerd-2.2
         if: matrix.runtime == 'containerd'
-      - name: Install and setup K3s
-        run: |
-          export INSTALL_K3S_EXEC
-          if [ -e /var/run/crio/crio.sock ] ; then
-              INSTALL_K3S_EXEC='--container-runtime-endpoint /var/run/crio/crio.sock'
-              ( echo '[crio.network]' ; echo 'plugin_dirs = [ "/var/lib/rancher/k3s/data/cni" ]' ) | sudo tee /etc/crio/crio.conf.d/20-cni.conf
-              sudo systemctl restart crio.service
-          elif [ -e /run/containerd/containerd.sock ] ; then
-              INSTALL_K3S_EXEC='--container-runtime-endpoint /run/containerd/containerd.sock'
-          fi
-          curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig ~/.kube/config --write-kubeconfig-group $( id -g ) --write-kubeconfig-mode 640 --disable=traefik --disable=metrics-server
+      - uses: ./.github/actions/install-k8s
+        env:
+          KUBERNETES_VERSION: v1.34
+        if: matrix.kubernetes == 'kubeadm init'
+      - uses: ./.github/actions/install-k3s
+        if: matrix.kubernetes == 'k3s'
+      - uses: ./.github/actions/install-rke2
+        if: matrix.kubernetes == 'rke2'
+      - uses: ./.github/actions/install-k0s
+        if: matrix.kubernetes == 'k0s'
+
       - name: Build image
         run: docker build -t localhost/kind .
       - run: sudo skopeo copy docker-daemon:localhost/kind:latest containers-storage:localhost/kind
@@ -179,12 +88,12 @@ jobs:
       - run: kubectl --kubeconfig=./kubeconfig get all -A
 
       - run: sudo journalctl -u k3s -S "$( cat job-start )" -l > k3s.log
-        if: failure()
+        if: failure() && matrix.kubernetes == 'k3s'
       - run: kubectl describe nodes
         if: failure()
       - uses: actions/upload-artifact@v4
         with:
           name: k3s-log-${{ matrix.runtime }}-${{matrix.arch}}
           path: k3s.log
-        if: failure()
+        if: failure() && matrix.kubernetes == 'k3s'
 

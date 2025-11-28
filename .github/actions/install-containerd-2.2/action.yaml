@@ -1,0 +1,21 @@
+name: Install and start containerd 2.2
+runs:
+  using: composite
+  steps:
+    - run: |
+        sudo systemctl stop containerd || :
+
+        curl -LO https://github.com/containerd/containerd/releases/download/v2.2.0/containerd-2.2.0-linux-$( dpkg --print-architecture ).tar.gz
+        sudo tar x -C /usr/local -vzf containerd-*.tar.gz
+
+        sudo mkdir -p /etc/containerd
+        sudo cp .github/actions/install-containerd-2.2/containerd-2-config-*.toml /etc/containerd
+
+        curl -LO https://github.com/containerd/containerd/raw/refs/heads/main/containerd.service
+        sudo mv containerd.service /etc/systemd/system/
+        sudo systemctl daemon-reload
+
+        sudo systemctl start containerd
+        sudo ctr version
+        diff -u <( sudo containerd config default ) <( sudo containerd config dump ) || true
+      shell: bash -euxo pipefail {0}
