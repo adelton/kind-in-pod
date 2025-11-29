@@ -2,6 +2,8 @@ name: Check that we know about latest Kind release
 
 on:
   push:
+    branches:
+      - master
   workflow_dispatch:
   schedule:
     - cron: '17 6 * * 4'

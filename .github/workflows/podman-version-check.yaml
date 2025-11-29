@@ -2,6 +2,8 @@ name: Check that we know about latest Podman release
 
 on:
   push:
+    branches:
+      - master
   workflow_dispatch:
   schedule:
     - cron: '18 6 * * 4'
