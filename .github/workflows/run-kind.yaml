@@ -37,10 +37,8 @@ jobs:
             echo '+cpu' | sudo tee -a $i ; \
           done
         if: matrix.style == 'rootless'
-      - name: Use podman ${{ matrix.inner-podman-version }} in the container
-        run: sed -i 's%^FROM quay\.io/podman/stable.*%FROM quay.io/podman/stable:${{ matrix.inner-podman-version }}%' Dockerfile
-      - name: Build image
-        run: $podman build -t localhost/kind .
+      - name: Build image with podman ${{ matrix.inner-podman-version }}
+        run: $podman build --from quay.io/podman/stable:${{ matrix.inner-podman-version }} -t localhost/kind .
       - name: Create a volume
         run: $podman volume create kind-data
       - name: Network definition for rootless
