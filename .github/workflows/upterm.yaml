@@ -1,0 +1,9 @@
+name: Debug with upterm
+on: [push]
+jobs:
+  upterm-session:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v6
+    - name: Setup upterm session
+      uses: owenthereal/action-upterm@v1
