@@ -7,17 +7,39 @@ on:
   workflow_dispatch:
 
 jobs:
-  kind-in-podman:
-    name: Kind
+  build:
+    name: Build image
     runs-on: ubuntu-24.04${{ matrix.arch == 'arm64' && '-arm' || '' }}
     strategy:
       fail-fast: false
       matrix:
-        arch: [ amd64, arm64 ]
+        arch: [ x86_64, arm64 ]
+        inner-podman-version: [ v5.6, v5.7 ]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image with podman ${{ matrix.inner-podman-version }}
+        run: podman build --from quay.io/podman/stable:${{ matrix.inner-podman-version }} -t localhost/kind .
+      - name: Save image
+        run: podman save localhost/kind | gzip > kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}
+          path: kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}.tar.gz
+          retention-days: 1
+
+  kind-in-podman:
+    name: Kind
+    runs-on: ubuntu-24.04${{ matrix.arch == 'arm64' && '-arm' || '' }}
+    needs: [ build ]
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [ x86_64, arm64 ]
         style: [ rootless, rootful ]
         inner-podman-version: [ v5.6, v5.7 ]
         exclude:
-          - arch: amd64
+          - arch: x86_64
             style: rootful
     timeout-minutes: 15
     env:
@@ -37,8 +59,11 @@ jobs:
             echo '+cpu' | sudo tee -a $i ; \
           done
         if: matrix.style == 'rootless'
-      - name: Build image with podman ${{ matrix.inner-podman-version }}
-        run: $podman build --from quay.io/podman/stable:${{ matrix.inner-podman-version }} -t localhost/kind .
+      - uses: actions/download-artifact@v4
+        with:
+          name: kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}
+      - name: Load image
+        run: gunzip < kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}.tar.gz | $podman load
       - name: Create a volume
         run: $podman volume create kind-data
       - name: Network definition for rootless
@@ -75,14 +100,20 @@ jobs:
   kind-in-k3s:
     name: Kind in K3s
     runs-on: ubuntu-24.04${{ matrix.arch == 'arm64' && '-arm' || '' }}
+    needs: [ build ]
     strategy:
       fail-fast: false
       matrix:
-        arch: [ amd64, arm64 ]
+        arch: [ x86_64, arm64 ]
+        inner-podman-version: [ v5.6, v5.7 ]
         runtime: [ cri-o, default ]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - run: sudo systemctl stop docker.service docker.socket
+      - uses: actions/download-artifact@v4
+        with:
+          name: kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}
       - run: date '+%F %T' > job-start
       - name: Install and setup CRI-O
         run: |
@@ -107,13 +138,10 @@ jobs:
               sudo systemctl restart crio.service
           fi
           curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig ~/.kube/config --write-kubeconfig-group $( id -g ) --write-kubeconfig-mode 640 --disable=traefik --disable=metrics-server
-      - name: Build image
-        run: docker build -t localhost/kind .
-      - run: sudo skopeo copy docker-daemon:localhost/kind:latest containers-storage:localhost/kind
+      - run: sudo skopeo copy docker-archive:kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}.tar.gz containers-storage:localhost/kind
         if: matrix.runtime == 'cri-o'
-      - run: docker save localhost/kind | sudo k3s ctr images import -
+      - run: sudo k3s ctr images import - < kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}.tar.gz
         if: matrix.runtime == 'default'
-      - run: sudo systemctl stop docker.service docker.socket
 
       - name: Wait for the cluster to become ready
         run: while ! kubectl get nodes ; do sleep 5 ; done ; kubectl get nodes -o jsonpath='{.items[*].metadata.name}' | xargs kubectl wait --for=condition=ready node
