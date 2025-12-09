@@ -5,16 +5,86 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      arch:
+        description: Architecture
+        type: choice
+        options:
+          - both
+          - x86_64
+          - arm64
+      inner-podman-version:
+        description: Version of podman in the image
+        type: choice
+        options:
+          - all
+          - v5.7
+          - v5.6
+      podman-style:
+        description: How to run podman
+        type: choice
+        options:
+          - all
+          - none
+          - rootless
+          - rootful
+      runtime:
+        description: K3s runtime
+        type: choice
+        options:
+          - all
+          - none
+          - default
+          - cri-o
 
 jobs:
+  init:
+    name: Process the multi-select inputs
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    outputs:
+      arch: ${{ steps.process-inputs.outputs.arch }}
+      podman-style: ${{ steps.process-inputs.outputs.podman-style }}
+      inner-podman-version: ${{ steps.process-inputs.outputs.inner-podman-version }}
+      runtime: ${{ steps.process-inputs.outputs.runtime }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: process-inputs
+        run: |
+          if [ -z "${{ inputs.arch }}" -o "${{ inputs.arch }}" = "both" ] ; then
+            yq -I0 '.on.workflow_dispatch.inputs.arch.options.[1:]' .github/workflows/run-kind.yaml -o json
+          else
+            echo '["${{ inputs.arch }}"]'
+          fi | sed 's/^/arch=/' | tee -a $GITHUB_OUTPUT
+          if [ -z "${{ inputs.inner-podman-version }}" -o "${{ inputs.inner-podman-version }}" = "all" ] ; then
+            yq -I0 '.on.workflow_dispatch.inputs.inner-podman-version.options.[1:]' .github/workflows/run-kind.yaml -o json
+          else
+            echo '["${{ inputs.inner-podman-version }}"]'
+          fi | sed 's/^/inner-podman-version=/' | tee -a $GITHUB_OUTPUT
+          if [ -z "${{ inputs.podman-style }}" -o "${{ inputs.podman-style }}" = "all" ] ; then
+            yq -I0 '.on.workflow_dispatch.inputs.podman-style.options.[2:]' .github/workflows/run-kind.yaml -o json
+          elif [ "${{ inputs.podman-style }}" = "none" ] ; then
+            echo '[]'
+          else
+            echo '["${{ inputs.podman-style }}"]'
+          fi | sed 's/^/podman-style=/' | tee -a $GITHUB_OUTPUT
+          if [ -z "${{ inputs.runtime }}" -o "${{ inputs.runtime }}" = "all" ] ; then
+            yq -I0 '.on.workflow_dispatch.inputs.runtime.options.[2:]' .github/workflows/run-kind.yaml -o json
+          elif [ "${{ inputs.runtime }}" = "none" ] ; then
+            echo '[]'
+          else
+            echo '["${{ inputs.runtime }}"]'
+          fi | sed 's/^/runtime=/' | tee -a $GITHUB_OUTPUT
+
   build:
     name: Build image
     runs-on: ubuntu-24.04${{ matrix.arch == 'arm64' && '-arm' || '' }}
+    needs: [ init ]
     strategy:
       fail-fast: false
       matrix:
-        arch: [ x86_64, arm64 ]
-        inner-podman-version: [ v5.6, v5.7 ]
+        arch: ${{ fromJSON(needs.init.outputs.arch ) }}
+        inner-podman-version: ${{ fromJSON(needs.init.outputs.inner-podman-version ) }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -31,16 +101,17 @@ jobs:
   kind-in-podman:
     name: Kind
     runs-on: ubuntu-24.04${{ matrix.arch == 'arm64' && '-arm' || '' }}
-    needs: [ build ]
+    needs: [ init, build ]
+    if: needs.init.outputs.podman-style != '[]'
     strategy:
       fail-fast: false
       matrix:
-        arch: [ x86_64, arm64 ]
-        style: [ rootless, rootful ]
-        inner-podman-version: [ v5.6, v5.7 ]
+        arch: ${{ fromJSON(needs.init.outputs.arch ) }}
+        podman-style: ${{ fromJSON(needs.init.outputs.podman-style ) }}
+        inner-podman-version: ${{ fromJSON(needs.init.outputs.inner-podman-version ) }}
         exclude:
           - arch: x86_64
-            style: rootful
+            podman-style: rootful
     timeout-minutes: 15
     env:
       kind_create_opts: --config /etc/kind-cluster.yaml
@@ -50,7 +121,7 @@ jobs:
         run: echo "podman=podman" >> $GITHUB_ENV
       - name: Set sudo podman env
         run: echo "podman=sudo podman" >> $GITHUB_ENV
-        if: matrix.style == 'rootful'
+        if: matrix.podman-style == 'rootful'
       - name: Enable cpu cgroup delegation
         run: |
           for i in /sys/fs/cgroup/user.slice/cgroup.subtree_control \
@@ -58,7 +129,7 @@ jobs:
             /sys/fs/cgroup/user.slice/user-$(id -u).slice/user@$(id -u).service/cgroup.subtree_control ; do \
             echo '+cpu' | sudo tee -a $i ; \
           done
-        if: matrix.style == 'rootless'
+        if: matrix.podman-style == 'rootless'
       - uses: actions/download-artifact@v4
         with:
           name: kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}
@@ -68,15 +139,15 @@ jobs:
         run: $podman volume create kind-data
       - name: Network definition for rootless
         run: echo "podman_run_opts=-v $(pwd)/kind-network.yaml:/var/lib/containers/storage/networks/kind.json" >> $GITHUB_ENV
-        if: matrix.style == 'rootless'
+        if: matrix.podman-style == 'rootless'
       - name: Network definition for rootful
         run: echo "podman_run_opts=-v $(pwd)/kind-network.yaml:/etc/containers/networks/kind.json" >> $GITHUB_ENV
-        if: matrix.style == 'rootful'
+        if: matrix.podman-style == 'rootful'
       - name: Run the podman container
         run: $podman run -d --privileged --read-only --name kind -v kind-data:/var/lib/containers $podman_run_opts -p 6443:6443 localhost/kind
       - name: Cluster configuration for rootless
         run: echo "kind_create_opts=--config /etc/kind-cluster-rootless.yaml" >> $GITHUB_ENV
-        if: matrix.style == 'rootless'
+        if: matrix.podman-style == 'rootless'
       - name: Create kind cluster
         run: $podman exec kind kind create cluster --retain $kind_create_opts
       - run: $podman exec kind podman logs kind-control-plane
@@ -100,13 +171,14 @@ jobs:
   kind-in-k3s:
     name: Kind in K3s
     runs-on: ubuntu-24.04${{ matrix.arch == 'arm64' && '-arm' || '' }}
-    needs: [ build ]
+    needs: [ init, build ]
+    if: needs.init.outputs.runtime != '[]'
     strategy:
       fail-fast: false
       matrix:
-        arch: [ x86_64, arm64 ]
-        inner-podman-version: [ v5.6, v5.7 ]
-        runtime: [ cri-o, default ]
+        arch: ${{ fromJSON(needs.init.outputs.arch ) }}
+        runtime: ${{ fromJSON(needs.init.outputs.runtime ) }}
+        inner-podman-version: ${{ fromJSON(needs.init.outputs.inner-podman-version ) }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
