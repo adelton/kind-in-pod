@@ -36,6 +36,10 @@ on:
           - none
           - default
           - cri-o
+      exclude:
+        description: Exclude from job matrix (JSON)
+        type: string
+        default: '[{"arch":"x86_64","podman-style":"rootful"}]'
 
 jobs:
   init:
@@ -44,9 +48,9 @@ jobs:
     timeout-minutes: 1
     outputs:
       arch: ${{ steps.process-inputs.outputs.arch }}
-      podman-style: ${{ steps.process-inputs.outputs.podman-style }}
       inner-podman-version: ${{ steps.process-inputs.outputs.inner-podman-version }}
-      runtime: ${{ steps.process-inputs.outputs.runtime }}
+      run-in-podman: ${{ steps.randomize-plan.outputs.run-in-podman }}
+      run-in-k3s: ${{ steps.randomize-plan.outputs.run-in-k3s }}
     steps:
       - uses: actions/checkout@v4
       - id: process-inputs
@@ -75,6 +79,21 @@ jobs:
           else
             echo '["${{ inputs.runtime }}"]'
           fi | sed 's/^/runtime=/' | tee -a $GITHUB_OUTPUT
+      - id: randomize-plan
+        run: |
+          echo '{"arch":${{ steps.process-inputs.outputs.arch }},' \
+            '"inner-podman-version":${{ steps.process-inputs.outputs.inner-podman-version }},' \
+            '"podman-style":${{ steps.process-inputs.outputs.podman-style }},' \
+            '"runtime":${{ steps.process-inputs.outputs.runtime }}}' > .github/params.json
+
+          exclude="$( yq -I0 '.on.workflow_dispatch.inputs.exclude.default' .github/workflows/run-kind.yaml -o json | jq -c 'fromjson' )"
+          if [ "${{ github.event_name }}" = workflow_dispatch ] ; then
+            exclude='${{ inputs.exclude }}'
+          fi
+          jq -c -f .github/generate-randomized-matrix.jq .github/params.json --arg count 4 --argjson exclude "${exclude:-[]}" --args arch podman-style inner-podman-version \
+            | sed 's/^/run-in-podman=/' | tee -a $GITHUB_OUTPUT
+          jq -c -f .github/generate-randomized-matrix.jq .github/params.json --arg count 5 --argjson exclude "${exclude:-[]}" --args arch runtime inner-podman-version \
+            | sed 's/^/run-in-k3s=/' | tee -a $GITHUB_OUTPUT
 
   build:
     name: Build image
@@ -102,16 +121,11 @@ jobs:
     name: Kind
     runs-on: ubuntu-24.04${{ matrix.arch == 'arm64' && '-arm' || '' }}
     needs: [ init, build ]
-    if: needs.init.outputs.podman-style != '[]'
+    if: needs.init.outputs.run-in-podman != '[]'
     strategy:
       fail-fast: false
       matrix:
-        arch: ${{ fromJSON(needs.init.outputs.arch ) }}
-        podman-style: ${{ fromJSON(needs.init.outputs.podman-style ) }}
-        inner-podman-version: ${{ fromJSON(needs.init.outputs.inner-podman-version ) }}
-        exclude:
-          - arch: x86_64
-            podman-style: rootful
+        include: ${{ fromJSON(needs.init.outputs.run-in-podman ) }}
     timeout-minutes: 15
     env:
       kind_create_opts: --config /etc/kind-cluster.yaml
@@ -172,13 +186,11 @@ jobs:
     name: Kind in K3s
     runs-on: ubuntu-24.04${{ matrix.arch == 'arm64' && '-arm' || '' }}
     needs: [ init, build ]
-    if: needs.init.outputs.runtime != '[]'
+    if: needs.init.outputs.run-in-k3s != '[]'
     strategy:
       fail-fast: false
       matrix:
-        arch: ${{ fromJSON(needs.init.outputs.arch ) }}
-        runtime: ${{ fromJSON(needs.init.outputs.runtime ) }}
-        inner-podman-version: ${{ fromJSON(needs.init.outputs.inner-podman-version ) }}
+        include: ${{ fromJSON(needs.init.outputs.run-in-k3s ) }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
