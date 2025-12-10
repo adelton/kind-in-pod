@@ -1,0 +1,18 @@
+name: Install and setup CRI-O
+runs:
+  using: composite
+  steps:
+    - run: |
+        [ -n "$CRIO_VERSION" ] || exit 1
+
+        sudo rm -f /etc/cni/net.d/*.conflist
+        sudo cp .github/actions/cni-10-bridge.conflist /etc/cni/net.d/10-bridge.conflist
+
+        curl -fsSL https://download.opensuse.org/repositories/isv:/cri-o:/stable:/$CRIO_VERSION/deb/Release.key \
+            | gpg --dearmor | sudo tee /etc/apt/keyrings/cri-o-apt-keyring.gpg > /dev/null
+        echo "deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.gpg] https://download.opensuse.org/repositories/isv:/cri-o:/stable:/$CRIO_VERSION/deb/ /" \
+            | sudo tee /etc/apt/sources.list.d/cri-o.list
+        sudo apt update
+        sudo apt install -y cri-o
+        sudo systemctl start crio.service
+      shell: bash -euxo pipefail {0}

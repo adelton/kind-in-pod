@@ -207,39 +207,13 @@ jobs:
         run: |
           sudo systemctl stop containerd || :
         if: matrix.runtime != 'containerd'
-      - name: Install and setup CRI-O
-        run: |
-          CRIO_VERSION=v1.34
-          curl -fsSL https://download.opensuse.org/repositories/isv:/cri-o:/stable:/$CRIO_VERSION/deb/Release.key \
-              | gpg --dearmor | sudo tee /etc/apt/keyrings/cri-o-apt-keyring.gpg > /dev/null
-          echo "deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.gpg] https://download.opensuse.org/repositories/isv:/cri-o:/stable:/$CRIO_VERSION/deb/ /" \
-              | sudo tee /etc/apt/sources.list.d/cri-o.list
-
-          sudo apt update
-          sudo apt install -y cri-o
-
-          sudo rm -f /etc/cni/net.d/*.conflist
-          sudo cp .github/workflows/containerd-10-bridge.conflist /etc/cni/net.d/10-crio-bridge.conflist
-          sudo systemctl start crio.service
+      - uses: ./.github/actions/install-crio
+        env:
+          CRIO_VERSION: v1.34
         if: matrix.runtime == 'cri-o'
-      - name: Configure cni for the system containerd
-        run: |
-          sudo rm -f /etc/cni/net.d/*.conflist
-          sudo cp .github/workflows/containerd-10-bridge.conflist /etc/cni/net.d/10-crio-bridge.conflist
-          sudo mkdir -p /etc/containerd && sudo cp .github/workflows/containerd-config-1-k3s.toml /etc/containerd/config.toml
-          sudo systemctl restart containerd
+      - uses: ./.github/actions/configure-containerd-system
         if: matrix.runtime == 'containerd'
-      - name: Install and setup K3s
-        run: |
-          export INSTALL_K3S_EXEC
-          if [ -e /var/run/crio/crio.sock ] ; then
-              INSTALL_K3S_EXEC='--flannel-backend=none --container-runtime-endpoint /var/run/crio/crio.sock'
-              ( echo '[crio.network]' ; echo 'plugin_dirs = [ "/var/lib/rancher/k3s/data/cni" ]' ) | sudo tee /etc/crio/crio.conf.d/20-cni.conf
-              sudo systemctl restart crio.service
-          elif [ -e /run/containerd/containerd.sock ] ; then
-              INSTALL_K3S_EXEC='--flannel-backend=none  --container-runtime-endpoint /run/containerd/containerd.sock'
-          fi
-          curl -sfL https://get.k3s.io | sh -s - --write-kubeconfig ~/.kube/config --write-kubeconfig-group $( id -g ) --write-kubeconfig-mode 640 --disable=traefik --disable=metrics-server
+      - uses: ./.github/actions/install-k3s
       - run: sudo skopeo copy docker-archive:kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}.tar.gz containers-storage:localhost/kind
         if: matrix.runtime == 'cri-o'
       - run: gunzip < kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}.tar.gz | sudo ctr -n k8s.io images import -
