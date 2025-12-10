@@ -1,0 +1,9 @@
+name: Configure systemd containerd
+runs:
+  using: composite
+  steps:
+    - run: |
+        sudo mkdir -p /etc/containerd
+        sudo cp .github/actions/containerd-config-1-k3s.toml /etc/containerd/config.toml
+        sudo systemctl restart containerd
+      shell: bash -euxo pipefail {0}
