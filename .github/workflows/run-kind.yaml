@@ -206,10 +206,10 @@ jobs:
         if: matrix.runtime != 'containerd'
       - name: Install and setup CRI-O
         run: |
-          CRIO_VERSION=v1.32
-          curl -fsSL https://pkgs.k8s.io/addons:/cri-o:/stable:/$CRIO_VERSION/deb/Release.key \
+          CRIO_VERSION=v1.34
+          curl -fsSL https://download.opensuse.org/repositories/isv:/cri-o:/stable:/$CRIO_VERSION/deb/Release.key \
               | gpg --dearmor | sudo tee /etc/apt/keyrings/cri-o-apt-keyring.gpg > /dev/null
-          echo "deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.gpg] https://pkgs.k8s.io/addons:/cri-o:/stable:/$CRIO_VERSION/deb/ /" \
+          echo "deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.gpg] https://download.opensuse.org/repositories/isv:/cri-o:/stable:/$CRIO_VERSION/deb/ /" \
               | sudo tee /etc/apt/sources.list.d/cri-o.list
 
           sudo apt update
