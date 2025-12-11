@@ -1,0 +1,23 @@
+{
+  "cniVersion": "1.0.0",
+  "name": "ctr",
+  "plugins": [
+    {
+      "type": "bridge",
+      "bridge": "cni0",
+      "isGateway": true,
+      "ipMasq": true,
+      "hairpinMode": true,
+      "ipam": {
+        "type": "host-local",
+        "routes": [
+            { "dst": "0.0.0.0/0" },
+            { "dst": "::/0" }
+        ],
+        "ranges": [
+            [{ "subnet": "10.14.0.0/16" }]
+        ]
+      }
+    }
+  ]
+}

@@ -3,7 +3,6 @@ runs:
   using: composite
   steps:
     - run: |
-        sudo rm -f /etc/cni/net.d/*.conflist
         sudo mkdir -p /etc/rancher/rke2/config.yaml.d
         if [ -e /var/run/crio/crio.sock ] ; then
             echo "container-runtime-endpoint: /var/run/crio/crio.sock" | sudo tee /etc/rancher/rke2/config.yaml.d/70-crio.yaml

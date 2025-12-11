@@ -17,6 +17,10 @@ runs:
         sudo mv containerd.service /etc/systemd/system/
         sudo systemctl daemon-reload
 
+        sudo mkdir -p /etc/cni/net.d
+        sudo rm -f /etc/cni/net.d/*.conflist
+        sudo cp .github/actions/10-bridge.conflist /etc/cni/net.d
+
         sudo systemctl start containerd
         sudo ctr version
         diff -u <( sudo containerd config default ) <( sudo containerd config dump ) || true

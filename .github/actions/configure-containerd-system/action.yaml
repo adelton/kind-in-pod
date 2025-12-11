@@ -6,6 +6,11 @@ runs:
         sudo mkdir -p /etc/containerd
         # remove the default config which has disabled_plugins = ["cri"]
         sudo rm -f /etc/containerd/config.toml
+
+        sudo mkdir -p /etc/cni/net.d
+        sudo rm -f /etc/cni/net.d/*.conflist
+        sudo cp .github/actions/10-bridge.conflist /etc/cni/net.d
+
         sudo systemctl restart containerd
         sudo cp .github/actions/containerd-config-k3s.toml /etc/containerd/
       shell: bash -euxo pipefail {0}
