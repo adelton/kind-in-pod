@@ -12,22 +12,18 @@ on:
         options:
           - both
           - x86_64
-          - arm64
       inner-podman-version:
         description: Version of podman in the image
         type: choice
         options:
           - all
           - v5.7
-          - v5.6
       podman-style:
         description: How to run podman
         type: choice
         options:
           - all
           - none
-          - rootless
-          - rootful
       runtime:
         description: K3s runtime
         type: choice
