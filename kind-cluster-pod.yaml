@@ -17,6 +17,7 @@ metadata:
   labels:
     app: kind-cluster
 spec:
+  restartPolicy: Never
   initContainers:
   - name: create-cluster
     image: localhost/kind
