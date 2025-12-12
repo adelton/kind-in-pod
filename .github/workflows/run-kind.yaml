@@ -202,6 +202,13 @@ jobs:
         if: matrix.runtime != 'containerd'
       - name: Install and setup CRI-O
         run: |
+          sudo modprobe br_netfilter
+          sudo sysctl -w net.ipv4.ip_forward=1
+          sudo iptables -A FORWARD -o cni0 -j ACCEPT
+
+          sudo sysctl -w net.bridge.bridge-nf-call-iptables=1
+          sudo sysctl -w net.bridge.bridge-nf-call-ip6tables=1
+
           CRIO_VERSION=v1.34
           curl -fsSL https://download.opensuse.org/repositories/isv:/cri-o:/stable:/$CRIO_VERSION/deb/Release.key \
               | gpg --dearmor | sudo tee /etc/apt/keyrings/cri-o-apt-keyring.gpg > /dev/null
