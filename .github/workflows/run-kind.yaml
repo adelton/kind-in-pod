@@ -215,12 +215,12 @@ jobs:
           sudo apt update
           sudo apt install -y cri-o
 
-          sudo cp /etc/cni/net.d/10-crio-bridge.conflist.disabled /etc/cni/net.d/10-crio-bridge.conflist
+          sudo rm -f /etc/cni/net.d/*.conflist
           sudo systemctl start crio.service
         if: matrix.runtime == 'cri-o'
       - name: Configure cni for the system containerd
         run: |
-          sudo cp .github/workflows/containerd-10-bridge.conflist /etc/cni/net.d/10-crio-bridge.conflist
+          sudo rm -f /etc/cni/net.d/*.conflist
           sudo mkdir -p /etc/containerd && sudo cp .github/workflows/containerd-config-1-k3s.toml /etc/containerd/config.toml
           sudo systemctl restart containerd
         if: matrix.runtime == 'containerd'
@@ -229,7 +229,7 @@ jobs:
           export INSTALL_K3S_EXEC
           if [ -e /var/run/crio/crio.sock ] ; then
               INSTALL_K3S_EXEC='--container-runtime-endpoint /var/run/crio/crio.sock'
-              ( echo '[crio.network]' ; echo 'plugin_dirs = [ "/var/lib/rancher/k3s/data/cni" ]' ) | sudo tee /etc/crio/crio.conf.d/20-cni.conf
+              ( echo '[crio.network]' ; echo 'plugin_dirs = [ "/var/lib/rancher/k3s/data/cni" ]' ; echo 'network_dir="/var/lib/rancher/k3s/agent/etc/cni/net.d"' ) | sudo tee /etc/crio/crio.conf.d/20-cni.conf
               sudo systemctl restart crio.service
           elif [ -e /run/containerd/containerd.sock ] ; then
               INSTALL_K3S_EXEC='--container-runtime-endpoint /run/containerd/containerd.sock'
