@@ -245,6 +245,7 @@ jobs:
       - name: Wait for the cluster to become ready
         run: while ! kubectl get nodes ; do sleep 5 ; done ; kubectl get nodes -o jsonpath='{.items[*].metadata.name}' | xargs kubectl wait --for=condition=ready node
       - run: kubectl get all -A
+      - run: ip a ; ip r
       - run: while ! kubectl get serviceaccount/default ; do sleep 5 ; done
       - run: kubectl apply -f - < kind-cluster-pod-k3s.yaml
       - run: while ! kubectl get pod/kind-cluster -o jsonpath="{.status.initContainerStatuses[0].state['running','terminated'].startedAt}" | grep . ; do kubectl get pod/kind-cluster ; sleep 5 ; done
