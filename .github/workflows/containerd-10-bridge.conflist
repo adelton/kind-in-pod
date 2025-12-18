@@ -1,6 +1,6 @@
 {
   "cniVersion": "1.0.0",
-  "name": "ctr",
+  "name": "bridge-host-local",
   "plugins": [
     {
       "type": "bridge",
@@ -10,13 +10,11 @@
       "hairpinMode": true,
       "ipam": {
         "type": "host-local",
-        "routes": [
-            { "dst": "0.0.0.0/0" },
-            { "dst": "::/0" }
-        ],
         "ranges": [
-            [{ "subnet": "10.75.0.0/16" }],
-            [{ "subnet": "1100:300::/24" }]
+            [{ "subnet": "10.75.0.0/16" }]
+        ],
+        "routes": [
+            { "dst": "0.0.0.0/0" }
         ]
       }
     }
