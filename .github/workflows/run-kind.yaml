@@ -215,11 +215,13 @@ jobs:
           sudo apt update
           sudo apt install -y cri-o
 
+          sudo rm -f /etc/cni/net.d/*.conflist
           sudo cp .github/workflows/containerd-10-bridge.conflist /etc/cni/net.d/10-crio-bridge.conflist
           sudo systemctl start crio.service
         if: matrix.runtime == 'cri-o'
       - name: Configure cni for the system containerd
         run: |
+          sudo rm -f /etc/cni/net.d/*.conflist
           sudo cp .github/workflows/containerd-10-bridge.conflist /etc/cni/net.d/10-crio-bridge.conflist
           sudo mkdir -p /etc/containerd && sudo cp .github/workflows/containerd-config-1-k3s.toml /etc/containerd/config.toml
           sudo systemctl restart containerd
