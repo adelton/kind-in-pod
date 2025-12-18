@@ -215,7 +215,7 @@ jobs:
           sudo apt update
           sudo apt install -y cri-o
 
-          sudo cp /etc/cni/net.d/10-crio-bridge.conflist.disabled /etc/cni/net.d/10-crio-bridge.conflist
+          sudo cp .github/workflows/containerd-10-bridge.conflist /etc/cni/net.d/10-crio-bridge.conflist
           sudo systemctl start crio.service
         if: matrix.runtime == 'cri-o'
       - name: Configure cni for the system containerd
