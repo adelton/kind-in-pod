@@ -44,7 +44,7 @@ on:
 
 jobs:
   init:
-    name: Process the multi-select inputs
+    name: Test plan
     runs-on: ubuntu-latest
     timeout-minutes: 1
     outputs:
@@ -92,9 +92,12 @@ jobs:
             exclude='${{ inputs.exclude }}'
           fi
           jq -c -f .github/generate-randomized-matrix.jq .github/params.json --arg count 4 --argjson exclude "${exclude:-[]}" --args arch podman-style inner-podman-version \
+            | tee .github/matrix-run-in-podman.json \
             | sed 's/^/run-in-podman=/' | tee -a $GITHUB_OUTPUT
           jq -c -f .github/generate-randomized-matrix.jq .github/params.json --arg count 6 --argjson exclude "${exclude:-[]}" --args arch runtime inner-podman-version \
+            | tee .github/matrix-run-in-k3s.json \
             | sed 's/^/run-in-k3s=/' | tee -a $GITHUB_OUTPUT
+          cat .github/matrix-run-in-podman.json .github/matrix-run-in-k3s.json | jq -sr -f .github/test-matrix-to-html.jq >> $GITHUB_STEP_SUMMARY
 
   build:
     name: Build image
