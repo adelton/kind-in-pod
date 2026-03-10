@@ -18,8 +18,8 @@ on:
         type: choice
         options:
           - all
+          - v5.8
           - v5.7
-          - v5.6
       podman-style:
         description: How to run podman
         type: choice
