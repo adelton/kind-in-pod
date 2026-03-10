@@ -64,7 +64,7 @@ jobs:
       run-in-podman: ${{ steps.randomize-plan.outputs.run-in-podman }}
       run-in-k8s: ${{ steps.randomize-plan.outputs.run-in-k8s }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - id: process-inputs
         run: |
           if [ -z "${{ inputs.arch }}" -o "${{ inputs.arch }}" = "both" ] ; then
@@ -129,12 +129,12 @@ jobs:
         inner-podman-version: ${{ fromJSON(needs.init.outputs.inner-podman-version ) }}
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Build image with podman ${{ matrix.inner-podman-version }}
         run: podman build --from quay.io/podman/stable:${{ matrix.inner-podman-version }} -t localhost/kind .
       - name: Save image
         run: podman save localhost/kind | gzip > kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}.tar.gz
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}
           path: kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}.tar.gz
@@ -153,7 +153,7 @@ jobs:
     env:
       kind_create_opts: --config /etc/kind-cluster.yaml
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set podman env
         run: echo "podman=podman" >> $GITHUB_ENV
       - name: Set sudo podman env
@@ -167,7 +167,7 @@ jobs:
             echo '+cpu' | sudo tee -a $i ; \
           done
         if: matrix.podman-style == 'rootless'
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}
       - name: Load image
@@ -216,9 +216,9 @@ jobs:
         include: ${{ fromJSON(needs.init.outputs.run-in-k8s ) }}
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: sudo systemctl stop docker.service docker.socket
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}
       - run: date '+%F %T' > job-start
@@ -294,7 +294,7 @@ jobs:
         if: failure() && matrix.kubernetes == 'k3s'
       - run: kubectl describe nodes
         if: failure()
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: k3s-log-${{ matrix.runtime }}-${{matrix.arch}}
           path: k3s.log
