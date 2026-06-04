@@ -1,4 +1,4 @@
-name: Install and setup containerd 2.2
+name: Install and setup containerd 2.3
 runs:
   using: composite
   steps:
@@ -8,7 +8,7 @@ runs:
         sudo rm -f /etc/cni/net.d/*.conflist
         sudo cp .github/actions/cni-10-bridge.conflist /etc/cni/net.d/10-bridge.conflist
 
-        curl -LO https://github.com/containerd/containerd/releases/download/v2.2.0/containerd-2.2.0-linux-$( dpkg --print-architecture ).tar.gz
+        curl -LO https://github.com/containerd/containerd/releases/download/v2.3.0/containerd-2.3.0-linux-$( dpkg --print-architecture ).tar.gz
         sudo tar x -C /usr/local -vzf containerd-*.tar.gz
 
         sudo mkdir -p /etc/containerd
