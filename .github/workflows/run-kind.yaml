@@ -228,7 +228,7 @@ jobs:
         if: matrix.runtime != 'containerd'
       - uses: ./.github/actions/install-crio
         env:
-          CRIO_VERSION: v1.34
+          CRIO_VERSION: v1.36
         if: matrix.runtime == 'cri-o'
       - uses: ./.github/actions/configure-containerd-system
         if: matrix.runtime == 'containerd'
@@ -236,7 +236,7 @@ jobs:
         if: matrix.runtime == 'containerd-2.2'
       - uses: ./.github/actions/install-k8s
         env:
-          KUBERNETES_VERSION: v1.34
+          KUBERNETES_VERSION: v1.36
         if: matrix.kubernetes == 'kubeadm init'
       - uses: ./.github/actions/install-k3s
         if: matrix.kubernetes == 'k3s'
