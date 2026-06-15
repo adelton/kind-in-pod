@@ -10,7 +10,7 @@ on:
 
 jobs:
   podman-version-check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - run: skopeo inspect docker://quay.io/podman/stable:latest > podman-latest.json
       - run: diff -u <( skopeo inspect docker://quay.io/podman/stable:v5.8 | jq -r '.Digest' ) <( jq -r '.Digest' podman-latest.json )

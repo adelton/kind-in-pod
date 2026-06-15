@@ -56,7 +56,7 @@ on:
 jobs:
   init:
     name: Test plan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 1
     outputs:
       arch: ${{ steps.process-inputs.outputs.arch }}
@@ -120,7 +120,7 @@ jobs:
 
   build:
     name: Build image
-    runs-on: ubuntu-24.04${{ matrix.arch == 'arm64' && '-arm' || '' }}
+    runs-on: ubuntu-26.04${{ matrix.arch == 'arm64' && '-arm' || '' }}
     needs: [ init ]
     strategy:
       fail-fast: false
@@ -142,7 +142,7 @@ jobs:
 
   kind-in-podman:
     name: Kind
-    runs-on: ubuntu-24.04${{ matrix.arch == 'arm64' && '-arm' || '' }}
+    runs-on: ubuntu-26.04${{ matrix.arch == 'arm64' && '-arm' || '' }}
     needs: [ init, build ]
     if: needs.init.outputs.run-in-podman != '[]'
     strategy:
@@ -207,7 +207,7 @@ jobs:
 
   kind-in-k8s:
     name: Kind in K8s
-    runs-on: ubuntu-24.04${{ matrix.arch == 'arm64' && '-arm' || '' }}
+    runs-on: ubuntu-26.04${{ matrix.arch == 'arm64' && '-arm' || '' }}
     needs: [ init, build ]
     if: needs.init.outputs.run-in-k8s != '[]'
     strategy:

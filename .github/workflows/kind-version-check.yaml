@@ -10,7 +10,7 @@ on:
 
 jobs:
   kind-version-check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - run: curl -s https://api.github.com/repos/kubernetes-sigs/kind/releases > kind-releases.json
       - run: jq -r '.[0].name' kind-releases.json | grep -Fx 'v0.32.0'
