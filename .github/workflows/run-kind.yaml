@@ -6,6 +6,13 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      runs-on:
+        description: Host Ubuntu version
+        type: choice
+        options:
+          - both
+          - "26.04"
+          - "24.04"
       arch:
         description: Architecture
         type: choice
@@ -59,6 +66,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 1
     outputs:
+      runs-on: ${{ steps.process-inputs.outputs.runs-on }}
       arch: ${{ steps.process-inputs.outputs.arch }}
       inner-podman-version: ${{ steps.process-inputs.outputs.inner-podman-version }}
       run-in-podman: ${{ steps.randomize-plan.outputs.run-in-podman }}
@@ -67,6 +75,11 @@ jobs:
       - uses: actions/checkout@v6
       - id: process-inputs
         run: |
+          if [ -z "${{ inputs.runs-on }}" -o "${{ inputs.runs-on }}" = "both" ] ; then
+            yq -I0 '.on.workflow_dispatch.inputs.runs-on.options.[1:]' .github/workflows/run-kind.yaml -o json
+          else
+            echo '["${{ inputs.runs-on }}"]'
+          fi | sed 's/^/runs-on=/' | tee -a $GITHUB_OUTPUT
           if [ -z "${{ inputs.arch }}" -o "${{ inputs.arch }}" = "both" ] ; then
             yq -I0 '.on.workflow_dispatch.inputs.arch.options.[1:]' .github/workflows/run-kind.yaml -o json
           else
@@ -100,7 +113,8 @@ jobs:
           fi | sed 's/^/runtime=/' | tee -a $GITHUB_OUTPUT
       - id: randomize-plan
         run: |
-          echo '{"arch":${{ steps.process-inputs.outputs.arch }},' \
+          echo '{"runs-on":${{ steps.process-inputs.outputs.runs-on }},' \
+            '"arch":${{ steps.process-inputs.outputs.arch }},' \
             '"inner-podman-version":${{ steps.process-inputs.outputs.inner-podman-version }},' \
             '"podman-style":${{ steps.process-inputs.outputs.podman-style }},' \
             '"kubernetes":${{ steps.process-inputs.outputs.kubernetes }},' \
@@ -110,10 +124,10 @@ jobs:
           if [ "${{ github.event_name }}" = workflow_dispatch ] ; then
             exclude='${{ inputs.exclude }}'
           fi
-          jq -c -f .github/generate-randomized-matrix.jq .github/params.json --arg count 4 --argjson exclude "${exclude:-[]}" --args arch podman-style inner-podman-version \
+          jq -c -f .github/generate-randomized-matrix.jq .github/params.json --arg count 4 --argjson exclude "${exclude:-[]}" --args runs-on arch podman-style inner-podman-version \
             | tee .github/matrix-run-in-podman.json \
             | sed 's/^/run-in-podman=/' | tee -a $GITHUB_OUTPUT
-          jq -c -f .github/generate-randomized-matrix.jq .github/params.json --arg count 10 --argjson exclude "${exclude:-[]}" --args kubernetes runtime inner-podman-version arch \
+          jq -c -f .github/generate-randomized-matrix.jq .github/params.json --arg count 10 --argjson exclude "${exclude:-[]}" --args runs-on kubernetes runtime inner-podman-version arch \
             | tee .github/matrix-run-in-k8s.json \
             | sed 's/^/run-in-k8s=/' | tee -a $GITHUB_OUTPUT
           cat .github/matrix-run-in-podman.json .github/matrix-run-in-k8s.json | jq -sr -L .github -f .github/test-matrix-to-html.jq >> $GITHUB_STEP_SUMMARY
