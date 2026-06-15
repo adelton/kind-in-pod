@@ -3,6 +3,7 @@ runs:
   using: composite
   steps:
     - run: |
+        sudo mkdir -p /etc/cni/net.d
         sudo rm -f /etc/cni/net.d/*.conflist
         sudo cp .github/actions/cni-10-bridge.conflist /etc/cni/net.d/10-bridge.conflist
 
