@@ -51,7 +51,7 @@ on:
       exclude:
         description: Exclude from job matrix (JSON)
         type: string
-        default: '[{"arch":"x86_64","podman-style":"rootful"},{"kubernetes":"k0s","runtime":"default"},{"kubernetes":"kubeadm init","runtime":"default"}]'
+        default: '[{"kubernetes":"k0s","runtime":"default"},{"kubernetes":"kubeadm init","runtime":"default"}]'
 
 jobs:
   init:
