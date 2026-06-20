@@ -116,7 +116,7 @@ jobs:
           jq -c -f .github/generate-randomized-matrix.jq .github/params.json --arg count 10 --argjson exclude "${exclude:-[]}" --args kubernetes runtime inner-podman-version arch \
             | tee .github/matrix-run-in-k8s.json \
             | sed 's/^/run-in-k8s=/' | tee -a $GITHUB_OUTPUT
-          cat .github/matrix-run-in-podman.json .github/matrix-run-in-k8s.json | jq -sr -f .github/test-matrix-to-html.jq >> $GITHUB_STEP_SUMMARY
+          cat .github/matrix-run-in-podman.json .github/matrix-run-in-k8s.json | jq -sr -L .github -f .github/test-matrix-to-html.jq >> $GITHUB_STEP_SUMMARY
 
   build:
     name: Build image
