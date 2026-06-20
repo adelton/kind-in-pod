@@ -16,11 +16,7 @@ def td($rowspan):
 ;
 
 flatten
-| . as $data
-| reduce .[] as $r ({}; .[ $r["inner-podman-version"] ][ $r.arch ] = 1)
-| with_entries( .value = ( .value | keys | sort ) )
-| . as $dist
-| $data
+| sort_by(if .["podman-style"] then 0 else 1 end, .kubernetes, .runtime)
 | reduce .[] as $r ({};
 	if ($r | has("podman-style")) then
 		.["podman"][ $r["podman-style"] ][ $r["inner-podman-version"] ][ $r.arch ] = "🔷"
@@ -28,42 +24,55 @@ flatten
 		.[ $r.kubernetes ][ $r.runtime ][ $r["inner-podman-version"] ][ $r.arch ] = "🔷"
 	end)
 | . as $data
+| "Podman in the pod" as $title
+| [ "Environment", "Runtime" ] as $coltitles
+
+| ( $coltitles | length ) as $ncolstart
+
+# fetch the top data (the rows in the table)
+| ( [ paths | select(length == $ncolstart) ]
+	| reduce .[] as $p ({}; getpath($p) //= {}) ) as $rows
+# and .spans for the rows
+| ( $rows | walk(.[".span"] = ([ .[][".span"]? ] | add // 1)) ) as $rowspans
+
+# set the columns
+| ( [ paths | select(length > $ncolstart) | .[$ncolstart:] ]
+	| sort
+	| reduce .[] as $p ({}; getpath($p) //= {}) ) as $cols
+# and .spans for the columns
+| ( $cols | walk(.[".span"] = ([ .[][".span"]? ] | add // 1)) ) as $colspans
+| ( [ $cols | paths | length ] | max ) as $colsmax
+
 |
 
 "<table>",
 "  <thead>",
 
 "    <tr>",
-( "Environment" | th(3; 1) ),
-( "Runtime" | th(3; 1) ),
-( "Podman in the pod" | th(1; [ $dist | to_entries | .[] | .value | length ] | add ) ),
+( $coltitles[] | th($colsmax + 1; 1) ),
+( $title | th(1; $colspans[".span"]) ),
 "    </tr>",
-"    <tr>",
-( $dist | keys | sort | .[] | th(1; $dist[.] | length) ),
-"    </tr>",
-"    <tr>",
-( $dist | keys | sort | .[] | $dist[.][] | th(1; 1) ),
-"    </tr>",
+
+( range(1; $colsmax + 1)
+	|
+	"    <tr>",
+	. as $r
+	| ( $cols | paths | select(length == $r) | . as $p | .[-1] | th(1; $colspans | getpath($p + [".span"])) ),
+	"    </tr>"
+),
 
 "  </thead>",
 "  <tbody>",
 
-( $data | to_entries[]
-	| .key as $k
-	| .value | to_entries | sort_by(.key)
-	| . as $v
-	| ( "    <tr>",
-		( $k | th( $v | length; 1) ),
-			( $v | .[0].key as $first_key | .[] | .value as $v
-				| ( if .key != $first_key then "    <tr>" else empty end ),
-				( .key | th(1; 1),
-					( $dist | to_entries | .[] | .key as $k | .value[]
-						| [ $k, . ] as $p | $v | getpath($p) | td(1))
-				),
-				"    </tr>"
-			)
-		)
-	),
+( [ $rows | paths ] | foreach .[] as $p ([[], []];
+	[ .[1], $p ];
+	if (.[0] | length) == 0 or (.[0] | length) >= ($p | length) then "    <tr>" else empty end,
+	( $p[-1] | th($rowspans | getpath($p + [".span"]); 1)),
+	if ($p | length) == $ncolstart
+	then ( $data | getpath( $cols | paths | select(length == $colsmax) | ($p + .)) | td(1)),
+		"    </tr>"
+	else empty end
+	)),
 
 "  </tbody>",
 "</table>"
