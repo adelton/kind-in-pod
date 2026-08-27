@@ -63,7 +63,7 @@ on:
 jobs:
   init:
     name: Test plan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     timeout-minutes: 1
     outputs:
       runs-on: ${{ steps.process-inputs.outputs.runs-on }}
