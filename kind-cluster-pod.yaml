@@ -31,7 +31,7 @@ spec:
     - name: TMPDIR
       value: /tmp
     - name: KIND_CLUSTER_CONFIG
-      value: /etc/kind-cluster-rootless.yaml
+      value: /etc/kind-cluster.yaml
     volumeMounts:
     - mountPath: /var/lib/containers
       name: var-lib-containers

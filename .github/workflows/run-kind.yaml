@@ -164,8 +164,6 @@ jobs:
       matrix:
         include: ${{ fromJSON(needs.init.outputs.run-in-podman ) }}
     timeout-minutes: 15
-    env:
-      kind_create_opts: --config /etc/kind-cluster.yaml
     steps:
       - uses: actions/checkout@v6
       - name: Set podman env
@@ -196,11 +194,8 @@ jobs:
         if: matrix.podman-style == 'rootful'
       - name: Run the podman container
         run: $podman run -d --privileged --read-only --name kind -v kind-data:/var/lib/containers $podman_run_opts -p 6443:6443 localhost/kind
-      - name: Cluster configuration for rootless
-        run: echo "kind_create_opts=--config /etc/kind-cluster-rootless.yaml" >> $GITHUB_ENV
-        if: matrix.podman-style == 'rootless'
       - name: Create kind cluster
-        run: $podman exec kind kind create cluster --retain $kind_create_opts
+        run: $podman exec kind kind create cluster --retain --config /etc/kind-cluster.yaml
       - run: $podman exec kind podman logs kind-control-plane
         if: ${{ failure() }}
       - run: $podman exec kind kubectl cluster-info --context kind-kind

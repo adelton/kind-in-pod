@@ -3,7 +3,7 @@ RUN dnf install -y kubernetes-client && dnf clean all
 RUN curl -Lso /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.33.0/kind-linux-$( rpm --eval '%{_arch}' | sed 's/aarch64/arm64/;t;s/.*/amd64/' )
 RUN chmod +x /usr/local/bin/kind
 RUN sed -i 's/utsns=.*/utsns="private"/; s/cgroups=.*/cgroups="enabled"/' /etc/containers/containers.conf
-COPY kind-cluster.yaml kind-cluster-rootless.yaml /etc/
+COPY kind-cluster.yaml /etc/
 COPY kind-create-cluster.sh /usr/local/bin/kind-create-cluster
 ENV KIND_EXPERIMENTAL_PROVIDER=podman
 ENV KUBECONFIG=/var/lib/containers/kubeconfig
