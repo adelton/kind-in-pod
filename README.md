@@ -20,14 +20,14 @@ with podman installed in it, to which we install **kind**:
 
 ```console
 $ podman run --rm -ti --privileged -h container quay.io/podman/stable
-[root@container /]# curl -Lso /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.32.0/kind-linux-amd64
+[root@container /]# curl -Lso /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.33.0/kind-linux-amd64
 [root@container /]# chmod +x /usr/local/bin/kind
 [root@container /]# kind create cluster --retain
 enabling experimental podman provider
 Creating cluster "kind" ...
- ✓ Ensuring node image (kindest/node:v1.36.1) 🖼 
+ ✓ Ensuring node image (kindest/node:v1.37.0) 🖼️ 
  ✗ Preparing nodes 📦  
-ERROR: failed to create cluster: command "podman run --name kind-control-plane --hostname kind-control-plane --label io.x-k8s.kind.role=control-plane --privileged --tmpfs /tmp --tmpfs /run --volume 59f1ed86ba1289b9ae1d60c73babc8f112a4804e1c4078d99a829c0f9de5cd96:/var:suid,exec,dev --volume /lib/modules:/lib/modules:ro -e KIND_EXPERIMENTAL_CONTAINERD_SNAPSHOTTER --detach --tty --net kind --label io.x-k8s.kind.cluster=kind -e container=podman --cgroupns=private --publish=127.0.0.1:32783:6443/tcp -e KUBECONFIG=/etc/kubernetes/admin.conf docker.io/kindest/node@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5" failed with error: exit status 125
+ERROR: failed to create cluster: command "podman run --name kind-control-plane --hostname kind-control-plane --label io.x-k8s.kind.role=control-plane --privileged --tmpfs /tmp --tmpfs /run --volume 77582fbcf287ddaeb53f789da908bee3acfc693e6663f8af68ba72c97898dcd1:/var:suid,exec,dev --volume /lib/modules:/lib/modules:ro -e KIND_EXPERIMENTAL_CONTAINERD_SNAPSHOTTER --detach --tty --net kind --label io.x-k8s.kind.cluster=kind -e container=podman --cgroupns=private --publish=127.0.0.1:33073:6443/tcp -e KUBECONFIG=/etc/kubernetes/admin.conf docker.io/kindest/node@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5" failed with error: exit status 125
 Command Output: Error: invalid config provided: cannot set hostname when running in the host UTS namespace: invalid configuration
 ```
 
@@ -62,50 +62,7 @@ Deleted nodes: ["kind-control-plane"]
 [root@container /]# kind create cluster --retain
 enabling experimental podman provider
 Creating cluster "kind" ...
- ✓ Ensuring node image (kindest/node:v1.36.1) 🖼
- ✓ Preparing nodes 📦  
- ✓ Writing configuration 📜 
- ✗ Starting control-plane 🕹️ 
-ERROR: failed to create cluster: failed to init node with kubeadm: command "podman exec --privileged kind-control-plane kubeadm init --config=/kind/kubeadm.conf --skip-token-print --v=6" failed with error: exit status 1
-Command Output: I0604 13:53:35.051006     186 initconfiguration.go:262] loading configuration from "/kind/kubeadm.conf"
-W0604 13:53:35.052422     186 initconfiguration.go:363] [config] WARNING: Ignored configuration document with GroupVersionKind kubeadm.k8s.io/v1beta4, Kind=JoinConfiguration
-[init] Using Kubernetes version: v1.36.1
-[...]
-I0604 13:54:35.934071     186 round_trippers.go:632] "Response" verb="POST" url="https://10.89.0.4:6443/apis/rbac.authorization.k8s.io/v1/clusterrolebindings?timeout=10s" status="" milliseconds=0
-error: error execution phase wait-control-plane: cannot obtain client without bootstrap: could not bootstrap the admin user in file admin.conf: unable to create ClusterRoleBinding: client rate limiter Wait returned an error: context deadline exceeded
-[...]
-```
-
-The `podman logs kind-control-plane` now has just systemd startup
-messages but we can continue the debugging with
-```console
-[root@container /]# podman exec kind-control-plane journalctl -l
-```
-where
-```
-Jun 04 13:53:36 kind-control-plane kubelet[230]: E0604 13:53:36.805377     230 kubelet.go:571] "Failed to create an oomWatcher (running in UserNS, Hint: enable KubeletInUserNamespace feature flag to ignore the error)" err="open /dev/kmsg: operation not permitted"
-```
-seems the most relevant.
-
-With a `kind-cluster.yaml` file
-```yaml
-kind: Cluster
-apiVersion: kind.x-k8s.io/v1alpha4
-nodes:
-- role: control-plane
-  kubeadmConfigPatches:
-  - |
-    kind: InitConfiguration
-    nodeRegistration:
-      kubeletExtraArgs:
-        feature-gates: KubeletInUserNamespace=true
-```
-we can actually get the initial step pass:
-```console
-[root@container /]# kind create cluster --retain --config kind-cluster.yaml
-enabling experimental podman provider
-Creating cluster "kind" ...
- ✓ Ensuring node image (kindest/node:v1.36.1) 🖼
+ ✓ Ensuring node image (kindest/node:v1.37.0) 🖼️
  ✓ Preparing nodes 📦  
  ✓ Writing configuration 📜 
  ✓ Starting control-plane 🕹️ 
@@ -116,8 +73,12 @@ You can now use your cluster with:
 
 kubectl cluster-info --context kind-kind
 
-Have a question, bug, or feature request? Let us know! https://kind.sigs.k8s.io/#community 🙂
+Not sure what to do next? 😅  Check out https://kind.sigs.k8s.io/docs/user/quick-start/
 ```
+
+Note: With previous versions of Kubernetes we also had to enable
+the `KubeletInUserNamespace` feature flag at this point.
+It is `true` starting with Kubernetes 1.37 so that step is no longer needed.
 
 We can then use
 ```console
@@ -131,10 +92,9 @@ default.
 Based on the above investigation, we can use a `Dockerfile`
 ```
 FROM quay.io/podman/stable
-RUN curl -Lso /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.32.0/kind-linux-amd64
+RUN curl -Lso /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.33.0/kind-linux-amd64
 RUN chmod +x /usr/local/bin/kind
 RUN sed -i 's/utsns=.*/utsns="private"/; s/cgroups=.*/cgroups="enabled"/' /etc/containers/containers.conf
-COPY kind-cluster-rootless.yaml /etc/kind-cluster-rootless.yaml
 ENV KIND_EXPERIMENTAL_PROVIDER=podman
 ```
 to build a container image which could be used in various scenarios.
@@ -144,7 +104,7 @@ The basic use then changes to
 ```console
 $ podman build -t localhost/kind .
 $ podman run -ti --privileged --name kind localhost/kind \
-    kind create cluster --config /etc/kind-cluster-rootless.yaml
+    kind create cluster
 ```
 
 Since the command now recommends
