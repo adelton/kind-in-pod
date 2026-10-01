@@ -20,7 +20,7 @@ with podman installed in it, to which we install **kind**:
 
 ```console
 $ podman run --rm -ti --privileged -h container quay.io/podman/stable
-[root@container /]# curl -Lso /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.33.0/kind-linux-amd64
+[root@container /]# curl -Lfso /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.33.0/kind-linux-amd64
 [root@container /]# chmod +x /usr/local/bin/kind
 [root@container /]# kind create cluster --retain
 enabling experimental podman provider
@@ -92,7 +92,7 @@ default.
 Based on the above investigation, we can use a `Dockerfile`
 ```
 FROM quay.io/podman/stable
-RUN curl -Lso /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.33.0/kind-linux-amd64
+RUN curl -Lfso /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.33.0/kind-linux-amd64
 RUN chmod +x /usr/local/bin/kind
 RUN sed -i 's/utsns=.*/utsns="private"/; s/cgroups=.*/cgroups="enabled"/' /etc/containers/containers.conf
 ENV KIND_EXPERIMENTAL_PROVIDER=podman
