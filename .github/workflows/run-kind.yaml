@@ -68,71 +68,47 @@ jobs:
     runs-on: ubuntu-slim
     timeout-minutes: 1
     outputs:
-      runs-on: ${{ steps.process-inputs.outputs.runs-on }}
-      arch: ${{ steps.process-inputs.outputs.arch }}
-      inner-podman-version: ${{ steps.process-inputs.outputs.inner-podman-version }}
+      arch: ${{ steps.get-arch.outputs.arch }}
+      inner-podman-version: ${{ steps.get-inner-podman-version.outputs.inner-podman-version }}
       run-in-podman: ${{ steps.randomize-plan.outputs.run-in-podman }}
       run-in-k8s: ${{ steps.randomize-plan.outputs.run-in-k8s }}
     steps:
       - uses: actions/checkout@v6
       - id: process-inputs
         run: |
-          if [ -z "${{ inputs.runs-on }}" -o "${{ inputs.runs-on }}" = "both" ] ; then
-            yq -I0 '.on.workflow_dispatch.inputs.runs-on.options.[1:]' .github/workflows/run-kind.yaml -o json
-          else
-            echo '["${{ inputs.runs-on }}"]'
-          fi | sed 's/^/runs-on=/' | tee -a $GITHUB_OUTPUT
-          if [ -z "${{ inputs.arch }}" -o "${{ inputs.arch }}" = "both" ] ; then
-            yq -I0 '.on.workflow_dispatch.inputs.arch.options.[1:]' .github/workflows/run-kind.yaml -o json
-          else
-            echo '["${{ inputs.arch }}"]'
-          fi | sed 's/^/arch=/' | tee -a $GITHUB_OUTPUT
-          if [ -z "${{ inputs.inner-podman-version }}" -o "${{ inputs.inner-podman-version }}" = "all" ] ; then
-            yq -I0 '.on.workflow_dispatch.inputs.inner-podman-version.options.[1:]' .github/workflows/run-kind.yaml -o json
-          else
-            echo '["${{ inputs.inner-podman-version }}"]'
-          fi | sed 's/^/inner-podman-version=/' | tee -a $GITHUB_OUTPUT
-          if [ -z "${{ inputs.podman-style }}" -o "${{ inputs.podman-style }}" = "all" ] ; then
-            yq -I0 '.on.workflow_dispatch.inputs.podman-style.options.[2:]' .github/workflows/run-kind.yaml -o json
-          elif [ "${{ inputs.podman-style }}" = "none" ] ; then
-            echo '[]'
-          else
-            echo '["${{ inputs.podman-style }}"]'
-          fi | sed 's/^/podman-style=/' | tee -a $GITHUB_OUTPUT
-          if [ -z "${{ inputs.kubernetes }}" -o "${{ inputs.kubernetes }}" = "all" ] ; then
-            yq -I0 '.on.workflow_dispatch.inputs.kubernetes.options.[2:]' .github/workflows/run-kind.yaml -o json
-          elif [ "${{ inputs.kubernetes }}" = "none" ] ; then
-            echo '[]'
-          else
-            echo '["${{ inputs.kubernetes }}"]'
-          fi | sed 's/^/kubernetes=/' | tee -a $GITHUB_OUTPUT
-          if [ -z "${{ inputs.runtime }}" -o "${{ inputs.runtime }}" = "all" ] ; then
-            yq -I0 '.on.workflow_dispatch.inputs.runtime.options.[2:]' .github/workflows/run-kind.yaml -o json
-          elif [ "${{ inputs.runtime }}" = "none" ] ; then
-            echo '[]'
-          else
-            echo '["${{ inputs.runtime }}"]'
-          fi | sed 's/^/runtime=/' | tee -a $GITHUB_OUTPUT
+          yq -o json '.on.workflow_dispatch.inputs' "$WORKFLOW_FILE" | jq -f .github/params-from-inputs-env.js > .github/params.json
+          cat .github/params.json
+        env:
+          RUNS_ON: ${{ inputs.runs-on }}
+          ARCH: ${{ inputs.arch }}
+          INNER_PODMAN_VERSION: ${{ inputs.inner-podman-version }}
+          PODMAN_STYLE: ${{ inputs.podman-style }}
+          KUBERNETES: ${{ inputs.kubernetes }}
+          RUNTIME: ${{ inputs.runtime }}
+          WORKFLOW_FILE: ${{ job.workflow_file_path }}
+        shell: bash -euo pipefail {0}
+      - id: get-arch
+        run: jq -crj '"arch=", .arch, "\n"' .github/params.json | tee -a "$GITHUB_OUTPUT"
+      - id: get-inner-podman-version
+        run: jq -crj '"inner-podman-version=", .["inner-podman-version"], "\n"' .github/params.json | tee -a "$GITHUB_OUTPUT"
       - id: randomize-plan
         run: |
-          echo '{"runs-on":${{ steps.process-inputs.outputs.runs-on }},' \
-            '"arch":${{ steps.process-inputs.outputs.arch }},' \
-            '"inner-podman-version":${{ steps.process-inputs.outputs.inner-podman-version }},' \
-            '"podman-style":${{ steps.process-inputs.outputs.podman-style }},' \
-            '"kubernetes":${{ steps.process-inputs.outputs.kubernetes }},' \
-            '"runtime":${{ steps.process-inputs.outputs.runtime }}}' > .github/params.json
-
-          exclude="$( yq -I0 '.on.workflow_dispatch.inputs.exclude.default' .github/workflows/run-kind.yaml -o json | jq -c 'fromjson' )"
-          if [ "${{ github.event_name }}" = workflow_dispatch ] ; then
-            exclude='${{ inputs.exclude }}'
+          # produce randomized test plan
+          if [ "$EVENT_NAME" != workflow_dispatch ] ; then
+            EXCLUDE="$( yq -I0 '.on.workflow_dispatch.inputs.exclude.default' "$WORKFLOW_FILE" -o json | jq -c 'fromjson' )"
           fi
-          jq -c -f .github/generate-randomized-matrix.jq .github/params.json --arg count 4 --argjson exclude "${exclude:-[]}" --args runs-on arch podman-style inner-podman-version \
+          EXCLUDE="${EXCLUDE:-[]}"
+          jq -c -f .github/generate-randomized-matrix.jq .github/params.json --arg count 4 --argjson exclude "$EXCLUDE" --args runs-on arch podman-style inner-podman-version \
             | tee .github/matrix-run-in-podman.json \
             | sed 's/^/run-in-podman=/' | tee -a $GITHUB_OUTPUT
-          jq -c -f .github/generate-randomized-matrix.jq .github/params.json --arg count 10 --argjson exclude "${exclude:-[]}" --args runs-on kubernetes runtime inner-podman-version arch \
+          jq -c -f .github/generate-randomized-matrix.jq .github/params.json --arg count 10 --argjson exclude "$EXCLUDE" --args runs-on kubernetes runtime inner-podman-version arch \
             | tee .github/matrix-run-in-k8s.json \
             | sed 's/^/run-in-k8s=/' | tee -a $GITHUB_OUTPUT
           cat .github/matrix-run-in-podman.json .github/matrix-run-in-k8s.json | jq -sr -L .github -f .github/test-matrix-to-html.jq >> $GITHUB_STEP_SUMMARY
+        env:
+          WORKFLOW_FILE: ${{ job.workflow_file_path }}
+          EVENT_NAME: ${{ github.event_name }}
+          EXCLUDE: ${{ inputs.exclude }}
 
   build:
     name: Build image
@@ -144,12 +120,15 @@ jobs:
         arch: ${{ fromJSON(needs.init.outputs.arch ) }}
         inner-podman-version: ${{ fromJSON(needs.init.outputs.inner-podman-version ) }}
     timeout-minutes: 5
+    env:
+      ARCH: ${{ matrix.arch }}
+      INNER_PODMAN_VERSION: ${{ matrix.inner-podman-version }}
     steps:
       - uses: actions/checkout@v6
       - name: Build image with podman ${{ matrix.inner-podman-version }}
-        run: podman build --from quay.io/podman/stable:${{ matrix.inner-podman-version }} -t localhost/kind .
+        run: podman build --from "quay.io/podman/stable:$INNER_PODMAN_VERSION" -t localhost/kind .
       - name: Save image
-        run: podman save localhost/kind | gzip > kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}.tar.gz
+        run: podman save localhost/kind | gzip > "kind-in-podman-$INNER_PODMAN_VERSION-$ARCH.tar.gz"
       - uses: actions/upload-artifact@v6
         with:
           name: kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}
@@ -166,12 +145,20 @@ jobs:
       matrix:
         include: ${{ fromJSON(needs.init.outputs.run-in-podman ) }}
     timeout-minutes: 15
+    env:
+      ARCH: ${{ matrix.arch }}
+      INNER_PODMAN_VERSION: ${{ matrix.inner-podman-version }}
     steps:
       - uses: actions/checkout@v6
       - name: Set podman env
-        run: echo "podman=podman" >> $GITHUB_ENV
+        run: |
+          echo "podman=podman" >> $GITHUB_ENV
+          echo "podman_run_opts=-v $(pwd)/kind-network.yaml:/var/lib/containers/storage/networks/kind.json" >> $GITHUB_ENV
+        if: matrix.podman-style == 'rootless'
       - name: Set sudo podman env
-        run: echo "podman=sudo podman" >> $GITHUB_ENV
+        run: |
+          echo "podman=sudo podman" >> $GITHUB_ENV
+          echo "podman_run_opts=-v $(pwd)/kind-network.yaml:/etc/containers/networks/kind.json" >> $GITHUB_ENV
         if: matrix.podman-style == 'rootful'
       - name: Enable cpu cgroup delegation
         run: |
@@ -185,15 +172,9 @@ jobs:
         with:
           name: kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}
       - name: Load image
-        run: gunzip < kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}.tar.gz | $podman load
+        run: gunzip < "kind-in-podman-$INNER_PODMAN_VERSION-$ARCH.tar.gz" | $podman load
       - name: Create a volume
         run: $podman volume create kind-data
-      - name: Network definition for rootless
-        run: echo "podman_run_opts=-v $(pwd)/kind-network.yaml:/var/lib/containers/storage/networks/kind.json" >> $GITHUB_ENV
-        if: matrix.podman-style == 'rootless'
-      - name: Network definition for rootful
-        run: echo "podman_run_opts=-v $(pwd)/kind-network.yaml:/etc/containers/networks/kind.json" >> $GITHUB_ENV
-        if: matrix.podman-style == 'rootful'
       - name: Run the podman container
         run: $podman run -d --privileged --read-only --name kind -v kind-data:/var/lib/containers $podman_run_opts -p 6443:6443 localhost/kind
       - name: Create kind cluster
