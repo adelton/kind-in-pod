@@ -2,7 +2,37 @@ name: Install and start RKE2
 runs:
   using: composite
   steps:
-    - run: |
+    - id: rke2-date
+      run: date '+date=%F' >> "$GITHUB_OUTPUT"
+      shell: bash -euxo pipefail {0}
+    - uses: actions/cache@v6
+      with:
+        path: ~/.cache/rke2-stable-release
+        key: rke2-stable-release-seen-${{ steps.rke2-date.outputs.date }}
+        restore-keys: rke2-stable-release-seen-
+    - id: rke2-version
+      name: Get latest stable RKE2 version
+      run: |
+        d=~/.cache/rke2-stable-release
+        mkdir -p "$d"
+        rke2_version() { sed -n '/^location:/I { s|.*/||; s/%2B/+/; s/\r$//; p }' "$1" 2>/dev/null || true ; }
+        version=
+        if curl -sSi --fail-with-body -o "$d/response.in" https://update.rke2.io/v1-release/channels/stable ; then
+            version=$( rke2_version "$d/response.in" )
+            [ -z "$version" ] || mv "$d/response.in" "$d/response"
+        fi
+        if [ -z "$version" ] ; then
+            echo "::warning::update.rke2.io did not return a stable release location"
+            if [ -f "$d/response" ] ; then
+                echo "using cached response"
+                cat "$d/response"
+                version=$( rke2_version "$d/response" )
+            fi
+        fi
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+      shell: bash -euxo pipefail {0}
+    - name: Run curl -sfL https://get.rke2.io | sudo INSTALL_RKE2_VERSION="${{ env.INSTALL_RKE2_VERSION }}" sh -
+      run: |
         sudo mkdir -p /etc/rancher/rke2/config.yaml.d
         if [ -e /var/run/crio/crio.sock ] ; then
             echo "container-runtime-endpoint: /var/run/crio/crio.sock" | sudo tee /etc/rancher/rke2/config.yaml.d/70-crio.yaml
@@ -10,12 +40,14 @@ runs:
             echo "container-runtime-endpoint: /var/run/containerd/containerd.sock" | sudo tee /etc/rancher/rke2/config.yaml.d/70-containerd.yaml
         fi
 
-        curl -sfL https://get.rke2.io | sudo sh -
+        curl -sfL https://get.rke2.io | sudo INSTALL_RKE2_VERSION="$INSTALL_RKE2_VERSION" sh -
         sudo systemctl start rke2-server.service
         systemctl status rke2-server.service
         mkdir ~/.kube
         sudo cat /etc/rancher/rke2/rke2.yaml > ~/.kube/config
         sudo ln -s /var/lib/rancher/rke2/bin/kubectl /usr/local/bin
+      env:
+        INSTALL_RKE2_VERSION: ${{ steps.rke2-version.outputs.version }}
       shell: bash -euxo pipefail {0}
     - uses: ./.github/actions/wait-for-k8s
     - run: |
