@@ -4,7 +4,7 @@ runs:
   steps:
     - name: Wait for a Ready node and the serviceaccount/default
       run: |
-        ( set +x ; while true ; do if kubectl get nodes | tee /dev/stderr | grep -q '\bReady\b' ; then break ; else sleep 5 ; fi ; done )
+        ( set +x ; while true ; do if kubectl get nodes | tee /dev/stderr | grep '\bReady\b' > /dev/null ; then break ; else sleep 5 ; fi ; done )
         ( set +x ; while ! kubectl get serviceaccount/default ; do sleep 5 ; done )
       shell: bash -euxo pipefail {0}
     - name: Wait for kubectl get pods --all-namespaces

@@ -8,6 +8,10 @@ on:
   schedule:
     - cron: '18 6 * * 4'
 
+defaults:
+  run:
+    shell: bash --noprofile --norc -euo pipefail {0}
+
 jobs:
   podman-version-check:
     runs-on: ubuntu-latest
