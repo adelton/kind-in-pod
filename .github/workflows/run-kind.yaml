@@ -25,7 +25,7 @@ on:
         type: choice
         options:
           - all
-          - v6.1
+          - v6.2
           - v5.8
       podman-style:
         description: How to run podman
