@@ -254,11 +254,8 @@ jobs:
         if: matrix.runtime == 'containerd' || matrix.runtime == 'containerd-2.4'
       - run: gunzip < kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}.tar.gz | sudo ctr -a /run/k3s/containerd/containerd.sock -n k8s.io images import -
         if: matrix.runtime == 'default'
-      - name: Wait for the cluster to become ready
-        run: while ! kubectl get nodes ; do sleep 5 ; done ; kubectl get nodes -o jsonpath='{.items[*].metadata.name}' | xargs kubectl wait --for=condition=ready node
       - run: kubectl get all -A
       - run: ip a ; ip r
-      - run: while ! kubectl get serviceaccount/default ; do sleep 5 ; done
       - run: kubectl apply -f - < kind-cluster-pod.yaml
       - run: while ! kubectl get pod/kind-cluster -o jsonpath="{.status.initContainerStatuses[0].state['running','terminated'].startedAt}" | grep . ; do kubectl get pod/kind-cluster ; sleep 5 ; done
       - run: kubectl logs -f pod/kind-cluster -c create-cluster
