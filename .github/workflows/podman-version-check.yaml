@@ -12,7 +12,7 @@ jobs:
   podman-version-check:
     runs-on: ubuntu-latest
     steps:
-      - run: skopeo inspect docker://quay.io/podman/stable:latest > podman-latest.json
-      - run: diff -u <( skopeo inspect docker://quay.io/podman/stable:v6.2 | jq -r '.Digest' ) <( jq -r '.Digest' podman-latest.json )
-      - run: cat podman-latest.json
-        if: ${{ failure() }}
+      - run: curl -sSL --fail-with-body -o podman-stable.json https://quay.io/api/v1/repository/podman/stable
+      - run: jq -e --arg VERSION v6.2 '.tags.latest.manifest_digest as $latest_digest | debug($latest_digest) | $latest_digest == .tags[$ARGS.named.VERSION].manifest_digest' podman-stable.json
+      - run: jq '.tags.latest.manifest_digest as $latest_digest | .tags[] | select(.manifest_digest == $latest_digest)' podman-stable.json
+        if: failure()
