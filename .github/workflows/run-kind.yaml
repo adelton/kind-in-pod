@@ -80,7 +80,7 @@ jobs:
       - uses: actions/checkout@v6
       - id: process-inputs
         run: |
-          yq -o json '.on.workflow_dispatch.inputs' "$WORKFLOW_FILE" | jq -f .github/params-from-inputs-env.js \
+          yq -o json '.on.workflow_dispatch.inputs' "$WORKFLOW_FILE" | jq -f .github/params-from-inputs-env.jq \
             | tee .github/params.json
         env:
           RUNS_ON: ${{ inputs.runs-on }}
