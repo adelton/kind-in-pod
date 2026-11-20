@@ -4,34 +4,49 @@ def xcontains($element):
 	$element | to_entries | map($input[.key] == .value) | all
 ;
 
-def random_select($count; $ensure_in):
-	if $count <= 0 or length <= 0 then []
-	else
-		. as $in
-		| ( $ensure_in // {} ) as $ensure
-		| ( if $ensure | length > 0 then
-			[ foreach ($ensure | keys[]) as $k ({};
-				( $ensure[$k] | .[ now * 1000000 % length ] ) as $kk | .[$k] = $kk ; .) ]
-			| reverse
-			else [] end ) as $ensure_selection
-		| reduce $ensure_selection[] as $e ([];
-			if length > 0 then . else [ $in[] | select(xcontains($e)) ] end)
-		| if length > 0 then . else $in end
-		| [ .[ now * 1000000 % length ] ] as $row
-		| $row + (( $in - $row )
-			| random_select($count - 1;
-				[ ( $row[], $ensure_selection[-1] // {}) | to_entries[] ]
-				| reduce .[] as $e ($ensure; if has($e.key) then .[$e.key] -= [ $e.value ] end)
-				| del(.. | select(length < 1))
-			)
-			)
-	end
+def unseen:
+	[ (.c1 | length), (.c2 | length) ]
 ;
 
-[ $ARGS.positional[] as $i | { "key": $i, "value": .[$i] } ]
-| from_entries as $ensure
-| reduce .[] as $e ([{}]; [ .[] as $c | $e.value[] | $c + { ($e.key): . } ])
-| map(select([$ARGS.named.exclude[] as $e | xcontains($e)] | any | not))
-| random_select($ARGS.named.count // 4 | tonumber; $ensure)
-| sort
+[ [ $ARGS.positional[] as $i | [ .[$i][] | { $i: . } ] ]
+	| combinations
+	| add
+]
+| map(select([$ARGS.named.exclude[]? as $e | xcontains($e)] | any | not))
+
+| [ .[]
+	| ( [ to_entries[] | [.] | from_entries ] ) as $c1
+	| {
+		r: .,
+		c1: $c1,
+		c2: [ $c1 | range(0; length) as $i | range($i + 1; length) as $j | [.[$i], .[$j]] ]
+	}
+]
+
+| [
+try
+foreach range($ARGS.named.count // 4 | tonumber) as $n (.;
+	if $n >= length then error("no more contributing records left at \($n)") end
+
+	| ( if $n == 0 then [ range(length) ]
+		else ( .[$n:] | map(unseen) | max ) as $max
+			| [ range($n; length) as $i | select((.[$i] | unseen) == $max) | $i ]
+		end ) as $list
+
+	| $list[ now * 1000000 % ($list | length) ] as $selected_index
+	| .[$selected_index] as $selected
+	| .[$selected_index] = .[$n]
+	| .[$n] = $selected
+
+	| reduce range($n + 1; length) as $i (.;
+		.[$i].c1 -= $selected.c1
+		| .[$i].c2 -= $selected.c2
+	)
+	;
+	.[$n].r
+)
+catch ( debug(. // "unspecified error") | empty )
+]
+
+| sort_by(.[])
 
