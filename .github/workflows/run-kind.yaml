@@ -154,6 +154,11 @@ jobs:
       INNER_PODMAN_VERSION: ${{ matrix.inner-podman-version }}
     steps:
       - uses: actions/checkout@v6
+      - id: download-image
+        uses: actions/download-artifact@v8
+        with:
+          name: kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}
+        background: true
       - name: Set podman env
         run: |
           echo "podman=podman" >> $GITHUB_ENV
@@ -172,13 +177,13 @@ jobs:
             echo '+cpu' | sudo tee -a $i ; \
           done
         if: matrix.podman-style == 'rootless'
-      - uses: actions/download-artifact@v8
-        with:
-          name: kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}
-      - name: Load image
-        run: gunzip < "kind-in-podman-$INNER_PODMAN_VERSION-$ARCH.tar.gz" | $podman load
       - name: Create a volume
         run: $podman volume create kind-data
+        background: true
+      - wait: download-image
+      - name: Load image
+        run: gunzip < "kind-in-podman-$INNER_PODMAN_VERSION-$ARCH.tar.gz" | $podman load
+      - wait-all:
       - name: Run the podman container
         run: $podman run -d --privileged --read-only --name kind -v kind-data:/var/lib/containers $podman_run_opts -p 6443:6443 localhost/kind
       - name: Create kind cluster
@@ -213,11 +218,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
-      - run: sudo systemctl stop docker.service docker.socket
       - uses: actions/download-artifact@v8
         with:
           name: kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}
+        background: true
       - run: date '+%F %T' > job-start
+      - run: sudo systemctl stop docker.service docker.socket
       - name: Stop the system containerd
         run: |
           sudo systemctl stop containerd || :
@@ -241,6 +247,7 @@ jobs:
       - uses: ./.github/actions/install-k0s
         if: matrix.kubernetes == 'k0s'
 
+      - wait-all:
       - run: sudo skopeo copy docker-archive:kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}.tar.gz containers-storage:localhost/kind
         if: matrix.runtime == 'cri-o'
       - run: gunzip < kind-in-podman-${{ matrix.inner-podman-version }}-${{matrix.arch}}.tar.gz | sudo ctr -n k8s.io images import -
