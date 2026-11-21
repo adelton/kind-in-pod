@@ -23,9 +23,13 @@ def unseen:
 	}
 ]
 
+| ( $ARGS.named.count // 4 | tonumber ) as $count
+| ( $ARGS.named.seed // 42 | tonumber ) as $seed
+| [ limit($count + 1; $seed % 2147483646 + 1 | recurse(. * 48271 % 2147483647)) ][1:] as $random
+
 | [
 try
-foreach range($ARGS.named.count // 4 | tonumber) as $n (.;
+foreach range($count) as $n (.;
 	if $n >= length then error("no more contributing records left at \($n)") end
 
 	| ( if $n == 0 then [ range(length) ]
@@ -33,7 +37,7 @@ foreach range($ARGS.named.count // 4 | tonumber) as $n (.;
 			| [ range($n; length) as $i | select((.[$i] | unseen) == $max) | $i ]
 		end ) as $list
 
-	| $list[ now * 1000000 % ($list | length) ] as $selected_index
+	| $list[ $random[$n] % ($list | length) ] as $selected_index
 	| .[$selected_index] as $selected
 	| .[$selected_index] = .[$n]
 	| .[$n] = $selected
